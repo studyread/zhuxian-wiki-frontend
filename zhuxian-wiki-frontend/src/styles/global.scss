@@ -1,0 +1,325 @@
+/* ============================================
+   诛仙世界 Wiki - 古风游戏 Wiki 风格
+   白底黑字 + 水墨边框 + 古典配色
+   ============================================ */
+
+/* CSS 变量定义 */
+:root {
+  /* 主色调 - 古风纸张色系 */
+  --color-paper: #faf8f3;
+  --color-paper-dark: #f5f0e6;
+  --color-ink: #2c2c2c;
+  --color-ink-light: #5a5a5a;
+  --color-ink-muted: #888888;
+  
+  /* 古风强调色 */
+  --color-cinnabar: #c45c48;
+  --color-cinnabar-light: #d47563;
+  --color-ochre: #b87333;
+  --color-jade: #5a8a6e;
+  --color-indigo: #4a6fa5;
+  
+  /* 边框色 */
+  --color-border: #d4cfc5;
+  --color-border-light: #e8e4dc;
+  --color-border-dark: #b8b3a8;
+  
+  /* 背景色 */
+  --color-white: #ffffff;
+  --color-cream: #fdfbf7;
+  
+  /* 字体 */
+  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
+  --font-sans: 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
+  
+  /* 圆角 - 古风用直角或小圆角 */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  
+  /* 阴影 - 柔和的水墨感 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+  
+  /* 间距 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  
+  /* 字体大小 */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+}
+
+/* 基础重置 */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* 链接样式 */
+a {
+  color: var(--color-cinnabar);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  
+  &:hover {
+    color: var(--color-cinnabar-light);
+    text-decoration: underline;
+  }
+}
+
+/* 按钮样式 - 古风 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+  
+  &:hover {
+    background: var(--color-paper-dark);
+    border-color: var(--color-border-dark);
+  }
+  
+  &:active {
+    transform: translateY(1px);
+  }
+  
+  &.btn-primary {
+    background: var(--color-cinnabar);
+    border-color: var(--color-cinnabar);
+    color: white;
+    
+    &:hover {
+      background: var(--color-cinnabar-light);
+      border-color: var(--color-cinnabar-light);
+    }
+  }
+  
+  &.btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    
+    &:hover {
+      background: var(--color-paper-dark);
+    }
+  }
+  
+  &.btn-outline {
+    background: transparent;
+    
+    &:hover {
+      background: var(--color-paper-dark);
+    }
+  }
+}
+
+/* 输入框样式 */
+.input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  transition: border-color 0.2s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: var(--color-ochre);
+  }
+  
+  &::placeholder {
+    color: var(--color-ink-muted);
+  }
+}
+
+/* 卡片样式 - 带古风边框 */
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  
+  .card-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border-light);
+    background: var(--color-cream);
+    
+    .card-title {
+      font-size: var(--text-md);
+      font-weight: 600;
+      color: var(--color-ink);
+      font-family: var(--font-serif);
+    }
+  }
+  
+  .card-body {
+    padding: 16px;
+  }
+}
+
+/* 标签样式 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-dark);
+  color: var(--color-ink-light);
+  border: 1px solid var(--color-border);
+  
+  &.tag-primary {
+    background: rgba(196, 92, 72, 0.1);
+    color: var(--color-cinnabar);
+    border-color: rgba(196, 92, 72, 0.3);
+  }
+  
+  &.tag-success {
+    background: rgba(90, 138, 110, 0.1);
+    color: var(--color-jade);
+    border-color: rgba(90, 138, 110, 0.3);
+  }
+  
+  &.tag-info {
+    background: rgba(74, 111, 165, 0.1);
+    color: var(--color-indigo);
+    border-color: rgba(74, 111, 165, 0.3);
+  }
+}
+
+/* 列表样式 */
+.list {
+  list-style: none;
+  
+  .list-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border-light);
+    
+    &:last-child {
+      border-bottom: none;
+    }
+    
+    a {
+      color: var(--color-ink);
+      
+      &:hover {
+        color: var(--color-cinnabar);
+      }
+    }
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-paper-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-dark);
+  border-radius: var(--radius-sm);
+  
+  &:hover {
+    background: var(--color-ink-muted);
+  }
+}
+
+/* 标题样式 - 古风衬线字体 */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-lg); }
+
+/* 分隔线 - 古风装饰线 */
+.divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-border) 20%,
+    var(--color-border) 80%,
+    transparent
+  );
+  margin: 24px 0;
+}
+
+/* 古风装饰边框 */
+.border-ancient {
+  border: 1px solid var(--color-border);
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    border: 1px solid var(--color-border-light);
+    pointer-events: none;
+  }
+}
+
+/* 文字截断 */
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
