@@ -1,6 +1,5 @@
 <template>
-  <AdminPage title="知识分类">
-    <div class="category-manage">
+  <div class="category-manage">
       <div class="manage-header">
         <h2>知识分类管理</h2>
         <button @click="showAddModal = true" class="btn-primary">新增分类</button>
@@ -48,12 +47,11 @@
         </div>
       </div>
     </div>
-  </AdminPage>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import AdminPage from '@/components/AdminPage.vue'
+
 import { knowledgeCategoryApi } from '@/api/knowledge'
 
 const categories = ref([])

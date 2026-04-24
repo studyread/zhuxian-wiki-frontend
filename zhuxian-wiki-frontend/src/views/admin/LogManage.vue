@@ -1,6 +1,5 @@
 <template>
-  <AdminPage title="操作日志">
-    <div class="log-manage">
+  <div class="log-manage">
       <div class="manage-header">
         <h2>操作日志</h2>
         <p class="log-tip">记录知识库的所有操作历史</p>
@@ -44,12 +43,11 @@
         </button>
       </div>
     </div>
-  </AdminPage>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import AdminPage from '@/components/AdminPage.vue'
+
 import { knowledgeLogApi } from '@/api/knowledge'
 
 const logs = ref([])

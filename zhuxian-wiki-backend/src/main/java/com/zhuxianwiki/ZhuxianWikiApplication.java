@@ -25,19 +25,23 @@ public class ZhuxianWikiApplication implements CommandLineRunner {
     
     @Override
     public void run(String... args) {
-        // 检查是否存在管理员，不存在则创建默认管理员
+        // 检查是否存在管理员，不存在则创建，存在则强制重置密码
         Admin existingAdmin = adminMapper.selectByUsername("admin");
         if (existingAdmin == null) {
             Admin defaultAdmin = new Admin();
             defaultAdmin.setUsername("admin");
-            defaultAdmin.setPassword(passwordEncoder.encode("admin123"));
             defaultAdmin.setNickname("超级管理员");
             defaultAdmin.setRole("super_admin");
             defaultAdmin.setStatus((byte) 1);
             adminMapper.insert(defaultAdmin);
-            System.out.println("============================================");
+            existingAdmin = adminMapper.selectByUsername("admin");
             System.out.println("默认管理员已创建: admin / admin123");
-            System.out.println("============================================");
+        }
+        // 强制重置默认管理员密码
+        if (existingAdmin != null) {
+            existingAdmin.setPassword(passwordEncoder.encode("admin123"));
+            adminMapper.updateById(existingAdmin);
+            System.out.println("管理员密码已重置: admin / admin123");
         }
     }
 }

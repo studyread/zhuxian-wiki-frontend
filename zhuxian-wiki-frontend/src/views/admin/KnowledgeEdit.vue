@@ -1,6 +1,5 @@
 <template>
-  <AdminPage :title="isEdit ? '知识库管理' : '知识录入'">
-    <div class="knowledge-edit">
+  <div class="knowledge-edit">
       <div class="edit-header">
         <h2>{{ isEdit ? '编辑词条' : '新增词条' }}</h2>
         <router-link to="/admin/knowledge" class="btn-back">返回列表</router-link>
@@ -101,13 +100,12 @@
         </div>
       </form>
     </div>
-  </AdminPage>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import AdminPage from '@/components/AdminPage.vue'
+
 import { knowledgeEntryApi, knowledgeCategoryApi } from '@/api/knowledge'
 
 const route = useRoute()

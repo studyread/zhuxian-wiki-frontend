@@ -1,6 +1,5 @@
 <template>
-  <AdminPage title="知识库管理">
-    <div class="knowledge-manage">
+  <div class="knowledge-manage">
       <!-- 工具栏 -->
       <div class="toolbar">
         <div class="toolbar-left">
@@ -109,13 +108,12 @@
         </div>
       </div>
     </div>
-  </AdminPage>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import AdminPage from '@/components/AdminPage.vue'
+
 import { knowledgeEntryApi, knowledgeCategoryApi } from '@/api/knowledge'
 
 const router = useRouter()

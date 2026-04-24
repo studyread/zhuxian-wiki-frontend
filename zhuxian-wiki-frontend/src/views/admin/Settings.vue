@@ -1,6 +1,5 @@
 <template>
-  <AdminPage title="系统设置">
-    <div class="admin-settings">
+  <div class="admin-settings">
       <div class="settings-header">
         <h2>系统设置</h2>
       </div>
@@ -36,12 +35,11 @@
         </div>
       </div>
     </div>
-  </AdminPage>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import AdminPage from '@/components/AdminPage.vue'
+
 
 const settings = reactive({
   aiApiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
