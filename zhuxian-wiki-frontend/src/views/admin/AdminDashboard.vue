@@ -6,8 +6,14 @@
         <h2>欢迎回来，{{ adminInfo?.nickname || '管理员' }}</h2>
         <p>今天是美好的一天，让我们开始管理工作吧</p>
       </div>
-      <div class="welcome-icon">
-        <img src="/big_logo.webp" alt="Logo" />
+      <div class="welcome-actions">
+        <button @click="handleLogout" class="logout-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          退出登录
+        </button>
+        <div class="welcome-icon">
+          <img src="/big_logo.webp" alt="Logo" />
+        </div>
       </div>
     </div>
 
@@ -101,26 +107,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { knowledgeEntryApi, knowledgeCategoryApi, knowledgeLogApi } from '@/api/knowledge'
 
 const adminInfo = ref(null)
 
+const handleLogout = () => {
+  localStorage.removeItem('admin_token')
+  localStorage.removeItem('admin_info')
+  localStorage.removeItem('admin_id')
+  window.location.href = '/admin.html#/login'
+}
+
+// 统计数据
 const stats = ref([
-  { title: '知识词条', value: '156', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>', bgColor: 'linear-gradient(135deg, #667eea, #764ba2)', trend: 12 },
-  { title: '知识分类', value: '8', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>', bgColor: 'linear-gradient(135deg, #f093fb, #f5576c)', trend: 0 },
-  { title: '总浏览量', value: '12.8k', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>', bgColor: 'linear-gradient(135deg, #4facfe, #00f2fe)', trend: 8 },
-  { title: '操作日志', value: '42', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', bgColor: 'linear-gradient(135deg, #43e97b, #38f9d7)', trend: 5 }
+  { title: '知识词条', value: '0', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>', bgColor: 'linear-gradient(135deg, #667eea, #764ba2)', trend: 0, loading: true },
+  { title: '知识分类', value: '0', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>', bgColor: 'linear-gradient(135deg, #f093fb, #f5576c)', trend: 0, loading: true },
+  { title: '总浏览量', value: '0', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>', bgColor: 'linear-gradient(135deg, #4facfe, #00f2fe)', trend: 0, loading: true },
+  { title: '操作日志', value: '0', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', bgColor: 'linear-gradient(135deg, #43e97b, #38f9d7)', trend: 0, loading: true }
 ])
 
-const categoryData = ref([
-  { name: '攻略', count: 56, percent: 100, color: '#667eea' },
-  { name: '门派', count: 24, percent: 43, color: '#f093fb' },
-  { name: '职业', count: 18, percent: 32, color: '#4facfe' },
-  { name: '副本', count: 32, percent: 57, color: '#43e97b' },
-  { name: '装备', count: 45, percent: 80, color: '#f5576c' },
-  { name: '宠物', count: 21, percent: 37, color: '#f59e0b' }
-])
-
+const categoryData = ref([])
 const recentLogs = ref([])
 
 const arrowUpIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>'
@@ -153,18 +160,101 @@ const formatTime = (time) => {
   return date.toLocaleDateString('zh-CN')
 }
 
-onMounted(() => {
+// 格式化数字
+const formatNumber = (num) => {
+  if (num >= 10000) {
+    return (num / 10000).toFixed(1) + 'w'
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'k'
+  }
+  return num.toString()
+}
+
+// 加载统计数据
+const loadStats = async () => {
+  try {
+    // 加载词条数量
+    const entryRes = await knowledgeEntryApi.list({ page: 1, size: 1 })
+    if (entryRes.code === 200) {
+      stats.value[0].value = formatNumber(entryRes.total || 0)
+      stats.value[0].loading = false
+    }
+
+    // 加载分类数量
+    const catRes = await knowledgeCategoryApi.list()
+    if (catRes.code === 200) {
+      stats.value[1].value = (catRes.data?.length || 0).toString()
+      stats.value[1].loading = false
+    }
+
+    // 加载日志统计
+    const logRes = await knowledgeLogApi.getStats()
+    if (logRes.code === 200 && logRes.data) {
+      stats.value[2].value = formatNumber(logRes.data.totalViews || 0)
+      stats.value[3].value = formatNumber(logRes.data.totalLogs || 0)
+      stats.value[2].loading = false
+      stats.value[3].loading = false
+    }
+  } catch (e) {
+    console.error('加载统计数据失败', e)
+  }
+}
+
+// 加载分类分布
+const loadCategoryDistribution = async () => {
+  try {
+    const [catRes, entryRes] = await Promise.all([
+      knowledgeCategoryApi.list(),
+      knowledgeEntryApi.list({ page: 1, size: 1000 })
+    ])
+
+    if (catRes.code === 200 && entryRes.code === 200) {
+      const categories = catRes.data || []
+      const entries = entryRes.data || []
+      const total = entries.length
+
+      const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#f5576c', '#f59e0b', '#38f9d7', '#667eea']
+      categoryData.value = categories.slice(0, 6).map((cat, i) => {
+        const count = entries.filter(e => e.categoryId === cat.id).length
+        const percent = total > 0 ? Math.round((count / total) * 100) : 0
+        return {
+          name: cat.name,
+          count,
+          percent,
+          color: colors[i % colors.length]
+        }
+      })
+    }
+  } catch (e) {
+    console.error('加载分类分布失败', e)
+  }
+}
+
+// 加载最近操作
+const loadRecentLogs = async () => {
+  try {
+    const res = await knowledgeLogApi.list({ page: 1, size: 5 })
+    if (res.code === 200) {
+      recentLogs.value = res.data || []
+    }
+  } catch (e) {
+    console.error('加载最近操作失败', e)
+  }
+}
+
+onMounted(async () => {
   const stored = localStorage.getItem('admin_info')
   if (stored) {
     adminInfo.value = JSON.parse(stored)
   }
 
-  recentLogs.value = [
-    { id: 1, operation: 'ingest', title: '青云门职业指南', description: '新增知识词条', createdAt: new Date(Date.now() - 3600000) },
-    { id: 2, operation: 'edit', title: '合欢派技能详解', description: '更新词条内容', createdAt: new Date(Date.now() - 7200000) },
-    { id: 3, operation: 'ingest', title: '装备强化攻略', description: '新增知识词条', createdAt: new Date(Date.now() - 86400000) },
-    { id: 4, operation: 'edit', title: '天音寺职业攻略', description: '更新词条内容', createdAt: new Date(Date.now() - 172800000) }
-  ]
+  // 并行加载所有数据
+  await Promise.all([
+    loadStats(),
+    loadCategoryDistribution(),
+    loadRecentLogs()
+  ])
 })
 </script>
 
@@ -196,6 +286,32 @@ onMounted(() => {
   margin: 0;
   opacity: 0.8;
   font-size: 12px;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.4);
 }
 
 .welcome-icon {

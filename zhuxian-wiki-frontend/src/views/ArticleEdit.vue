@@ -229,7 +229,14 @@ const handleCoverUpload = (e) => {
 
   const reader = new FileReader()
   reader.onload = (event) => {
-    form.coverImage = event.target.result
+    const base64 = event.target.result
+    // Base64 编码会增加约33%体积，检查转换后大小
+    const base64Size = new Blob([base64]).size
+    if (base64Size > 2 * 1024 * 1024) {
+      alert('图片转码后太大（' + Math.round(base64Size / 1024) + 'KB），请选择更小的图片（建议不超过1.5MB）')
+      return
+    }
+    form.coverImage = base64
   }
   reader.readAsDataURL(file)
 }
@@ -266,6 +273,13 @@ const handleSave = async () => {
   }
   if (!form.content.trim()) {
     alert('请输入攻略正文内容')
+    return
+  }
+
+  // 检查内容大小（MySQL默认限制1MB，留一些余量）
+  const contentSize = new Blob([form.content]).size
+  if (contentSize > 900 * 1024) {
+    alert('文章内容太大（' + Math.round(contentSize / 1024) + 'KB），请精简内容或拆分多篇发布')
     return
   }
 

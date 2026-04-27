@@ -40,7 +40,6 @@ public class Article {
     private Integer status;
     
     @TableField(fill = FieldFill.INSERT)
-    @TableLogic
     private LocalDateTime createdAt;
     
     @TableField(fill = FieldFill.INSERT_UPDATE)

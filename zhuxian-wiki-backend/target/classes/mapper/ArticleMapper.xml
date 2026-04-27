@@ -26,5 +26,23 @@
         )
         ORDER BY created_at DESC
     </select>
+    
+    <!-- 统计总浏览量 -->
+    <select id="getTotalViews" resultType="java.lang.Integer">
+        SELECT COALESCE(SUM(view_count), 0) FROM article WHERE status = 1
+    </select>
+    
+    <!-- 获取分类统计（含文章数） -->
+    <select id="getCategoryStats" resultType="java.util.Map">
+        SELECT 
+            c.id,
+            c.name,
+            c.icon,
+            COUNT(a.id) as articleCount
+        FROM category c
+        LEFT JOIN article a ON c.id = a.category_id AND a.status = 1
+        GROUP BY c.id, c.name, c.icon
+        ORDER BY articleCount DESC
+    </select>
 
 </mapper>

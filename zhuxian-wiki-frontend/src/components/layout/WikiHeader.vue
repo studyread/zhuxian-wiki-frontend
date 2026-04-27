@@ -25,11 +25,27 @@
       <!-- 导航菜单 -->
       <nav class="header-nav">
         <router-link to="/" class="nav-link">首页</router-link>
-        <router-link to="/category/门派" class="nav-link">门派</router-link>
-        <router-link to="/category/职业" class="nav-link">职业</router-link>
-        <router-link to="/category/攻略" class="nav-link">攻略</router-link>
+        <router-link 
+          v-for="cat in navCategories" 
+          :key="cat.id" 
+          :to="`/category/${cat.name}`" 
+          class="nav-link"
+        >
+          {{ cat.name }}
+        </router-link>
         <router-link to="/ai" class="nav-link nav-link-ai">AI 助手</router-link>
       </nav>
+
+      <!-- 写攻略按钮（仅管理员可见） -->
+      <router-link 
+        to="/article/edit" 
+        class="write-btn"
+        :class="{ disabled: !isAdmin }"
+        @click.prevent="handleWriteClick"
+        title="仅管理员可用"
+      >
+        <span>写攻略</span>
+      </router-link>
 
       <!-- 用户区域 -->
       <div class="header-user">
@@ -42,11 +58,27 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { categoryApi } from '@/api/article'
 
 const router = useRouter()
 const searchQuery = ref('')
+const navCategories = ref([])
+const isAdmin = computed(() => !!localStorage.getItem('admin_token'))
+
+// 加载导航分类
+const loadCategories = async () => {
+  try {
+    const res = await categoryApi.getAll()
+    if (res.code === 200) {
+      // 取前4个分类作为导航，最多显示门派、职业、攻略、PVP等
+      navCategories.value = (res.data || []).slice(0, 4)
+    }
+  } catch (error) {
+    console.error('加载分类失败:', error)
+  }
+}
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
@@ -54,10 +86,27 @@ const handleSearch = () => {
   }
 }
 
-const goToAdmin = () => {
-  // 管理后台是独立入口，必须用 window.location.href 而非前台 router.push
-  window.location.href = '/admin.html/login'
+// 写攻略按钮点击处理
+const handleWriteClick = () => {
+  if (!isAdmin.value) {
+    // 检查是否有普通用户登录
+    const userInfo = localStorage.getItem('user_info')
+    if (userInfo) {
+      alert('需要管理员登录才能使用写攻略功能')
+    } else {
+      alert('需要管理员登录才能使用写攻略功能，请先登录管理员账号')
+    }
+    window.location.href = '/admin.html'
+  }
 }
+
+const goToAdmin = () => {
+  window.location.href = '/admin.html'
+}
+
+onMounted(() => {
+  loadCategories()
+})
 </script>
 
 <style scoped>
@@ -198,6 +247,33 @@ const goToAdmin = () => {
   }
 }
 
+/* 写攻略按钮 */
+.write-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--color-cinnabar);
+  border: 1px solid var(--color-cinnabar);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.write-btn:hover:not(.disabled) {
+  background: var(--color-cinnabar-light);
+  border-color: var(--color-cinnabar-light);
+}
+
+.write-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* 用户区域 */
 .header-user {
   flex-shrink: 0;
@@ -239,6 +315,10 @@ const goToAdmin = () => {
   }
   
   .header-nav {
+    display: none;
+  }
+  
+  .write-btn {
     display: none;
   }
 }

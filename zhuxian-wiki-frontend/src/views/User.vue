@@ -141,64 +141,66 @@
 
     <!-- 已登录状态 -->
     <div v-else class="profile-container">
-      <div class="profile-header">
-        <div class="avatar-wrapper">
-          <img v-if="userInfo?.avatar" :src="userInfo.avatar" alt="Avatar" />
-          <span v-else class="avatar-placeholder">{{ userInfo?.nickname?.charAt(0) || 'U' }}</span>
+      <!-- 用户信息区域 - 非子路由页面时显示 -->
+      <template v-if="!isSubPage">
+        <div class="profile-header">
+          <div class="avatar-wrapper">
+            <img v-if="userInfo?.avatar" :src="userInfo.avatar" alt="Avatar" />
+            <span v-else class="avatar-placeholder">{{ userInfo?.nickname?.charAt(0) || 'U' }}</span>
+          </div>
+          <div class="profile-info">
+            <h2>{{ userInfo?.nickname || '用户' }}</h2>
+            <p>@{{ userInfo?.username }}</p>
+            <span class="user-role">{{ userInfo?.role === 'admin' ? '管理员' : '普通用户' }}</span>
+          </div>
+          <button @click="handleLogout" class="logout-btn">
+            <span v-html="logoutIcon"></span>
+            退出登录
+          </button>
         </div>
-        <div class="profile-info">
-          <h2>{{ userInfo?.nickname || '用户' }}</h2>
-          <p>@{{ userInfo?.username }}</p>
-          <span class="user-role">{{ userInfo?.role === 'admin' ? '管理员' : '普通用户' }}</span>
-        </div>
-        <button @click="handleLogout" class="logout-btn">
-          <span v-html="logoutIcon"></span>
-          退出登录
-        </button>
-      </div>
 
-      <div class="profile-stats">
-        <div class="stat-item">
-          <span class="stat-value">{{ userInfo?.articleCount || 0 }}</span>
-          <span class="stat-label">发布文章</span>
+        <div class="profile-stats">
+          <div class="stat-item">
+            <span class="stat-value">{{ userInfo?.articleCount || 0 }}</span>
+            <span class="stat-label">发布文章</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ userInfo?.favoriteCount || 0 }}</span>
+            <span class="stat-label">收藏文章</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ userInfo?.points || 0 }}</span>
+            <span class="stat-label">积分</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ userInfo?.favoriteCount || 0 }}</span>
-          <span class="stat-label">收藏文章</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ userInfo?.points || 0 }}</span>
-          <span class="stat-label">积分</span>
-        </div>
-      </div>
 
-      <div class="profile-actions">
-        <router-link to="/user/articles" class="action-card">
-          <span class="action-icon" v-html="articleIcon"></span>
-          <span class="action-text">我的文章</span>
-          <span class="action-arrow" v-html="arrowIcon"></span>
-        </router-link>
-        <router-link to="/user/favorites" class="action-card">
-          <span class="action-icon" v-html="starIcon"></span>
-          <span class="action-text">我的收藏</span>
-          <span class="action-arrow" v-html="arrowIcon"></span>
-        </router-link>
-        <router-link to="/user/settings" class="action-card">
-          <span class="action-icon" v-html="settingsIcon"></span>
-          <span class="action-text">账号设置</span>
-          <span class="action-arrow" v-html="arrowIcon"></span>
-        </router-link>
-      </div>
+        <div class="profile-actions">
+          <router-link to="/user/favorites" class="action-card">
+            <span class="action-icon" v-html="starIcon"></span>
+            <span class="action-text">我的收藏</span>
+            <span class="action-arrow" v-html="arrowIcon"></span>
+          </router-link>
+          <router-link to="/user/settings" class="action-card">
+            <span class="action-icon" v-html="settingsIcon"></span>
+            <span class="action-text">账号设置</span>
+            <span class="action-arrow" v-html="arrowIcon"></span>
+          </router-link>
+        </div>
+      </template>
+
+      <!-- 子路由页面 -->
+      <router-view v-else></router-view>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const showPassword = ref(false)
 const activeTab = ref('login')
@@ -221,6 +223,9 @@ const registerForm = ref({
 const userInfo = ref(null)
 
 const isLoggedIn = computed(() => !!userInfo.value)
+const isSubPage = computed(() => {
+  return ['UserFavorites', 'UserSettings'].includes(route.name)
+})
 
 const userIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
 const nicknameIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>'
@@ -228,7 +233,6 @@ const lockIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
 const eyeIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
 const eyeOffIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
 const logoutIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
-const articleIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>'
 const starIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
 const settingsIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
 const arrowIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>'

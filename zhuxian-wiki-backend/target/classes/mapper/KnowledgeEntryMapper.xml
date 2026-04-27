@@ -15,6 +15,7 @@
         ORDER BY updated_at DESC
     </select>
     
+    <!-- 优化搜索：增加content字段搜索 + 分词支持 -->
     <select id="searchByKeyword" resultType="com.zhuxianwiki.entity.KnowledgeEntry">
         SELECT * FROM knowledge_entry
         WHERE status = 1
@@ -22,9 +23,41 @@
             title LIKE CONCAT('%', #{keyword}, '%')
             OR summary LIKE CONCAT('%', #{keyword}, '%')
             OR tags LIKE CONCAT('%', #{keyword}, '%')
+            OR content LIKE CONCAT('%', #{keyword}, '%')
         )
-        ORDER BY view_count DESC, updated_at DESC
+        ORDER BY 
+            CASE 
+                WHEN title LIKE CONCAT('%', #{keyword}, '%') THEN 1
+                WHEN tags LIKE CONCAT('%', #{keyword}, '%') THEN 2
+                WHEN summary LIKE CONCAT('%', #{keyword}, '%') THEN 3
+                ELSE 4
+            END,
+            view_count DESC, 
+            updated_at DESC
+        LIMIT 30
+    </select>
+    
+    <!-- 分词搜索：同时搜索多个关键词（OR匹配） -->
+    <select id="searchByKeywords" resultType="com.zhuxianwiki.entity.KnowledgeEntry">
+        SELECT * FROM knowledge_entry
+        WHERE status = 1
+        AND (
+            <foreach collection="keywords" item="kw" separator=" OR ">
+                (
+                    title LIKE CONCAT('%', #{kw}, '%')
+                    OR summary LIKE CONCAT('%', #{kw}, '%')
+                    OR tags LIKE CONCAT('%', #{kw}, '%')
+                    OR content LIKE CONCAT('%', #{kw}, '%')
+                )
+            </foreach>
+        )
+        ORDER BY updated_at DESC
         LIMIT 20
+    </select>
+    
+    <!-- 统计总浏览量 -->
+    <select id="getTotalViews" resultType="java.lang.Integer">
+        SELECT COALESCE(SUM(view_count), 0) FROM knowledge_entry WHERE status = 1
     </select>
     
 </mapper>

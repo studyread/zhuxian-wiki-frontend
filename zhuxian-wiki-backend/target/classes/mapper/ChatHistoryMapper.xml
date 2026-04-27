@@ -3,8 +3,28 @@
 <mapper namespace="com.zhuxianwiki.mapper.ChatHistoryMapper">
 
     <select id="selectBySessionId" resultType="com.zhuxianwiki.entity.ChatHistory">
-        SELECT * FROM chat_history 
-        WHERE session_id = #{sessionId} 
+        SELECT * FROM chat_history
+        WHERE session_id = #{sessionId}
+        ORDER BY created_at ASC
+    </select>
+
+    <!-- 按用户查询所有会话列表（返回每个会话的第一条和最后一条消息，用于展示） -->
+    <select id="selectUserSessionList" resultType="com.zhuxianwiki.entity.ChatHistory">
+        SELECT ch.* FROM chat_history ch
+        INNER JOIN (
+            SELECT session_id, MAX(created_at) as max_time
+            FROM chat_history
+            WHERE user_id = #{userId}
+            GROUP BY session_id
+        ) latest ON ch.session_id = latest.session_id AND ch.created_at = latest.max_time
+        ORDER BY latest.max_time DESC
+        LIMIT 20
+    </select>
+
+    <!-- 按用户ID查询最新会话的第一条和最后一条消息 -->
+    <select id="selectUserSessionMessages" resultType="com.zhuxianwiki.entity.ChatHistory">
+        SELECT * FROM chat_history
+        WHERE user_id = #{userId}
         ORDER BY created_at ASC
     </select>
 
@@ -12,9 +32,34 @@
         DELETE FROM chat_history WHERE session_id = #{sessionId}
     </delete>
 
+    <!-- 删除指定会话中最老的N条记录 -->
+    <delete id="deleteOldestBySessionId">
+        DELETE FROM chat_history
+        WHERE session_id = #{sessionId}
+        AND id IN (
+            SELECT id FROM (
+                SELECT id FROM chat_history
+                WHERE session_id = #{sessionId}
+                ORDER BY created_at ASC
+                LIMIT #{limit}
+            ) AS old_records
+        )
+    </delete>
+
+    <!-- 统计指定会话的记录数量 -->
+    <select id="countBySessionId" resultType="int">
+        SELECT COUNT(*) FROM chat_history WHERE session_id = #{sessionId}
+    </select>
+
+    <!-- 带用户ID的插入 -->
+    <insert id="insertWithUserId" parameterType="com.zhuxianwiki.entity.ChatHistory">
+        INSERT INTO chat_history (user_id, session_id, role, content, created_at)
+        VALUES (#{userId}, #{sessionId}, #{role}, #{content}, #{createdAt})
+    </insert>
+
     <insert id="insertWithContent" parameterType="com.zhuxianwiki.entity.ChatHistory">
-        INSERT INTO chat_history (session_id, role, content, created_at)
-        VALUES (#{sessionId}, #{role}, #{content}, #{createdAt})
+        INSERT INTO chat_history (user_id, session_id, role, content, created_at)
+        VALUES (#{userId}, #{sessionId}, #{role}, #{content}, #{createdAt})
     </insert>
 
 </mapper>

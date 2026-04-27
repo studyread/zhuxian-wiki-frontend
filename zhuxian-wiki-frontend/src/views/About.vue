@@ -149,7 +149,6 @@
 </template>
 
 <script setup>
-// 静态页面，无需特殊逻辑
 </script>
 
 <style scoped>

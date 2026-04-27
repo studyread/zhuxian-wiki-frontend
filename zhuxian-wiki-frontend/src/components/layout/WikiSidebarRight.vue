@@ -32,29 +32,6 @@
         </button>
       </div>
     </div>
-
-    <!-- 站点统计 -->
-    <div class="sidebar-section">
-      <h3 class="sidebar-title">站点统计</h3>
-      <div class="stats-grid">
-        <div class="stat-item">
-          <span class="stat-value">{{ stats.articles }}</span>
-          <span class="stat-label">词条</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ stats.categories }}</span>
-          <span class="stat-label">分类</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ stats.views }}</span>
-          <span class="stat-label">浏览</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ stats.users }}</span>
-          <span class="stat-label">用户</span>
-        </div>
-      </div>
-    </div>
   </aside>
 </template>
 
@@ -65,25 +42,15 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 const tools = ref([
-  { name: '写攻略', icon: '写', action: 'write' },
   { name: '个人中心', icon: '我', action: 'user' },
-  { name: '意见反馈', icon: '馈', action: 'feedback' },
+  { name: '关于我们', icon: '关', action: 'about' },
 ])
 
-const stats = ref({
-  articles: 128,
-  categories: 12,
-  views: '3.2万',
-  users: 856,
-})
-
 const handleTool = (tool) => {
-  if (tool.action === 'write') {
-    router.push('/article/edit')
-  } else if (tool.action === 'user') {
+  if (tool.action === 'user') {
     router.push('/user')
-  } else if (tool.action === 'feedback') {
-    router.push('/user')
+  } else if (tool.action === 'about') {
+    router.push('/about')
   }
 }
 </script>
@@ -235,34 +202,5 @@ const handleTool = (tool) => {
 .tool-name {
   font-size: 11px;
   color: var(--color-ink-light);
-}
-
-/* 站点统计 */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px;
-  background: var(--color-paper);
-  border-radius: var(--radius-sm);
-}
-
-.stat-value {
-  font-size: 18px;
-  font-weight: 600;
-  font-family: var(--font-serif);
-  color: var(--color-ink);
-}
-
-.stat-label {
-  font-size: 11px;
-  color: var(--color-ink-muted);
-  margin-top: 2px;
 }
 </style>

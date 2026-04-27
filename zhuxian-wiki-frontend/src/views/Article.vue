@@ -66,6 +66,10 @@
             <i class="icon">{{ hasLiked ? '❤' : '☆' }}</i>
             {{ article.likeCount || 0 }} 点赞
           </button>
+          <button class="action-btn collect-btn" :class="{ active: hasCollected }" @click="handleCollect">
+            <i class="icon">{{ hasCollected ? '★' : '☆' }}</i>
+            {{ hasCollected ? '已收藏' : '收藏' }}
+          </button>
           <button class="action-btn share-btn" @click="handleShare">
             <i class="icon">↗</i>
             分享
@@ -129,6 +133,7 @@ const router = useRouter()
 const article = ref({})
 const loading = ref(true)
 const hasLiked = ref(false)
+const hasCollected = ref(false)
 const relatedArticles = ref([])
 const prevArticle = ref(null)
 const nextArticle = ref(null)
@@ -159,6 +164,12 @@ const loadArticle = async (id) => {
     if (res.code === 200) {
       article.value = res.data
       
+      // 从后端检查用户点赞状态
+      await checkLikeStatus(id)
+      
+      // 从后端检查用户收藏状态
+      await checkCollectStatus(id)
+      
       // 加载相关文章
       if (article.value.tags) {
         const tag = article.value.tags.split(',')[0]
@@ -178,10 +189,87 @@ const loadArticle = async (id) => {
   }
 }
 
-const handleLike = () => {
-  hasLiked.value = !hasLiked.value
-  if (article.value) {
-    article.value.likeCount = (article.value.likeCount || 0) + (hasLiked.value ? 1 : -1)
+// 检查用户点赞状态
+const checkLikeStatus = async (articleId) => {
+  const userInfo = localStorage.getItem('user_info')
+  if (userInfo) {
+    try {
+      const res = await articleApi.getLikeStatus(articleId)
+      if (res.code === 200) {
+        hasLiked.value = res.data
+      }
+    } catch (error) {
+      console.error('获取点赞状态失败:', error)
+    }
+  }
+}
+
+// 检查用户收藏状态
+const checkCollectStatus = async (articleId) => {
+  const userInfo = localStorage.getItem('user_info')
+  if (userInfo) {
+    try {
+      const res = await articleApi.getCollectStatus(articleId)
+      if (res.code === 200) {
+        hasCollected.value = res.data
+      }
+    } catch (error) {
+      console.error('获取收藏状态失败:', error)
+    }
+  }
+}
+
+// 处理收藏
+const handleCollect = async () => {
+  const userInfo = localStorage.getItem('user_info')
+  if (!userInfo) {
+    alert('请先登录后再收藏')
+    return
+  }
+
+  const userId = JSON.parse(userInfo).id
+  if (!userId) {
+    alert('请先登录后再收藏')
+    return
+  }
+
+  try {
+    const res = await articleApi.collect(article.value.id)
+    if (res.code === 200) {
+      hasCollected.value = res.data.collected
+      alert(res.data.collected ? '收藏成功' : '已取消收藏')
+    } else {
+      console.error('收藏失败:', res.message)
+    }
+  } catch (error) {
+    console.error('收藏失败:', error)
+  }
+}
+
+const handleLike = async () => {
+  // 检查是否已登录
+  const userInfo = localStorage.getItem('user_info')
+  if (!userInfo) {
+    alert('请先登录后再点赞')
+    return
+  }
+
+  const userId = JSON.parse(userInfo).id
+  if (!userId) {
+    alert('请先登录后再点赞')
+    return
+  }
+
+  try {
+    const res = await articleApi.likeWithUser(article.value.id)
+    if (res.code === 200) {
+      hasLiked.value = res.data.liked
+      article.value.likeCount = res.data.likeCount
+    } else {
+      console.error('点赞失败:', res.message)
+    }
+  } catch (error) {
+    console.error('点赞失败:', error)
   }
 }
 
@@ -418,6 +506,12 @@ watch(() => route.params.id, (newId) => {
   background: rgba(196, 92, 72, 0.1);
   border-color: var(--color-cinnabar);
   color: var(--color-cinnabar);
+}
+
+.action-btn.collect-btn.active {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: #ffc107;
+  color: #ffc107;
 }
 
 .action-btn .icon {

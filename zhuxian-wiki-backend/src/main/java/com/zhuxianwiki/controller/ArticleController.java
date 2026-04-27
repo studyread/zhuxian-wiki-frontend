@@ -21,9 +21,10 @@ public class ArticleController {
     public Map<String, Object> getArticles(
             @RequestParam(required = false) Long categoryId,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "latest") String sort) {
         
-        IPage<Article> pageResult = articleService.getArticlePage(categoryId, page, size);
+        IPage<Article> pageResult = articleService.getArticlePage(categoryId, page, size, sort);
         
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
@@ -74,19 +75,49 @@ public class ArticleController {
     }
     
     @PostMapping
-    public Map<String, Object> saveArticle(@RequestBody Article article) {
+    public Map<String, Object> saveArticle(
+            @RequestBody Article article,
+            @RequestHeader(value = "X-User-Id", required = false) Long authorId) {
         Map<String, Object> result = new HashMap<>();
-        boolean success = articleService.saveArticle(article);
         
-        result.put("code", success ? 200 : 500);
-        result.put("message", success ? "保存成功" : "保存失败");
+        if (authorId == null) {
+            result.put("code", 401);
+            result.put("message", "请先登录");
+            return result;
+        }
+        
+        try {
+            article.setAuthorId(authorId);
+            // 设置默认状态为已发布（1=已发布，0=草稿）
+            if (article.getStatus() == null) {
+                article.setStatus(1);
+            }
+            boolean success = articleService.saveArticle(article);
+            result.put("code", success ? 200 : 500);
+            result.put("message", success ? "保存成功" : "保存失败");
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", "保存失败: " + e.getMessage());
+            e.printStackTrace();
+        }
         return result;
     }
     
     @PutMapping("/{id}")
-    public Map<String, Object> updateArticle(@PathVariable Long id, @RequestBody Article article) {
+    public Map<String, Object> updateArticle(
+            @PathVariable Long id, 
+            @RequestBody Article article,
+            @RequestHeader(value = "X-User-Id", required = false) Long authorId) {
         Map<String, Object> result = new HashMap<>();
+        
+        if (authorId == null) {
+            result.put("code", 401);
+            result.put("message", "请先登录");
+            return result;
+        }
+        
         article.setId(id);
+        article.setAuthorId(authorId);
         boolean success = articleService.updateArticle(article);
         
         result.put("code", success ? 200 : 500);
@@ -95,12 +126,77 @@ public class ArticleController {
     }
     
     @DeleteMapping("/{id}")
-    public Map<String, Object> deleteArticle(@PathVariable Long id) {
+    public Map<String, Object> deleteArticle(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
         Map<String, Object> result = new HashMap<>();
-        boolean success = articleService.deleteArticle(id);
         
+        if (userId == null) {
+            result.put("code", 401);
+            result.put("message", "请先登录");
+            return result;
+        }
+        
+        boolean success = articleService.deleteArticle(id, userId);
+
         result.put("code", success ? 200 : 500);
-        result.put("message", success ? "删除成功" : "删除失败");
+        result.put("message", success ? "删除成功" : "无权限删除他人的文章");
+        return result;
+    }
+
+    // 按用户获取文章列表
+    @GetMapping("/user/{userId}")
+    public Map<String, Object> getArticlesByUser(@PathVariable Long userId) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("data", articleService.getArticlesByAuthorId(userId));
+        return result;
+    }
+
+    // 文章点赞
+    @PostMapping("/{id}/like")
+    public Map<String, Object> likeArticle(@PathVariable Long id) {
+        Map<String, Object> result = new HashMap<>();
+        boolean success = articleService.likeArticle(id);
+        result.put("code", success ? 200 : 500);
+        result.put("message", success ? "点赞成功" : "点赞失败");
+        return result;
+    }
+
+    // 用户点赞文章（带用户ID，每个用户只能点赞一次）
+    @PostMapping("/{id}/like/user")
+    public Map<String, Object> likeArticleWithUser(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        Map<String, Object> result = new HashMap<>();
+        
+        if (userId == null) {
+            result.put("code", 401);
+            result.put("message", "请先登录");
+            return result;
+        }
+        
+        Map<String, Object> likeResult = articleService.likeArticleWithUser(id, userId);
+        result.put("code", 200);
+        result.put("data", likeResult);
+        result.put("message", (Boolean) likeResult.get("liked") ? "点赞成功" : "已取消点赞");
+        return result;
+    }
+
+    // 检查用户是否已点赞某文章
+    @GetMapping("/{id}/like/status")
+    public Map<String, Object> getLikeStatus(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        Map<String, Object> result = new HashMap<>();
+        if (userId == null) {
+            result.put("code", 200);
+            result.put("data", false);
+            return result;
+        }
+        boolean liked = articleService.hasUserLikedArticle(id, userId);
+        result.put("code", 200);
+        result.put("data", liked);
         return result;
     }
 }

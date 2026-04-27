@@ -35,12 +35,13 @@ export const knowledgeEntryApi = {
 
 // 知识库日志
 export const knowledgeLogApi = {
-  list: (params) => axios.get('/knowledge/log/list', { params })
+  list: (params) => request.get('/knowledge/log/list', { params }),
+  getStats: () => request.get('/knowledge/log/stats')
 }
 
 // 管理员
 export const adminApi = {
-  login: (data) => axios.post('/admin/login', data),
-  register: (data) => axios.post('/admin/register', data),
-  info: () => axios.get('/admin/info')
+  login: (data) => request.post('/admin/login', data),
+  register: (data) => request.post('/admin/register', data),
+  info: () => request.get('/admin/info')
 }

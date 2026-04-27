@@ -14,4 +14,9 @@ public interface KnowledgeEntryMapper extends BaseMapper<KnowledgeEntry> {
     IPage<KnowledgeEntry> selectByPage(Page<KnowledgeEntry> page, @Param("categoryId") Long categoryId, @Param("status") Integer status);
     
     List<KnowledgeEntry> searchByKeyword(@Param("keyword") String keyword);
+    
+    List<KnowledgeEntry> searchByKeywords(@Param("keywords") List<String> keywords);
+    
+    // 统计总浏览量
+    Integer getTotalViews();
 }

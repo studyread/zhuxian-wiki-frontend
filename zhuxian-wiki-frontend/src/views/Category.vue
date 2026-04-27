@@ -30,10 +30,10 @@
     </div>
 
     <div v-else-if="articles.length > 0" class="article-grid">
-      <router-link 
-        v-for="article in articles" 
-        :key="article.id" 
-        :to="`/article/${article.id}`"
+      <router-link
+        v-for="article in articles"
+        :key="article.id"
+        :to="getArticleLink(article)"
         class="article-card"
       >
         <div class="card-cover">
@@ -63,8 +63,8 @@
     <!-- 空状态 -->
     <div v-else class="empty-state">
       <img src="/big_logo.webp" alt="Empty" class="empty-icon" />
-      <h3>暂无攻略</h3>
-      <p>该分类下暂无攻略文章，敬请期待</p>
+      <h3>暂无词条</h3>
+      <p>该分类下暂无词条内容，敬请期待</p>
     </div>
 
     <!-- 分页 -->
@@ -125,20 +125,23 @@ const formatDate = (dateStr) => {
 }
 
 const loadCategory = async (categoryId) => {
+  // 处理"全部"分类
+  if (categoryId === 'all') {
+    categoryName.value = '全部攻略'
+    categoryDescription.value = '所有游戏攻略'
+    return
+  }
+  
   try {
-    // 判断参数是数字 ID 还是中文名称
     const isNumeric = /^\d+$/.test(categoryId)
     const catRes = isNumeric
       ? await categoryApi.getById(categoryId)
       : await categoryApi.getByName(categoryId)
-    
+
     if (catRes.code === 200 && catRes.data) {
       categoryName.value = catRes.data.name || categoryId
       categoryDescription.value = catRes.data.description || '精选游戏攻略'
-      const id = parseInt(catRes.data.id) || 1
-      categoryIcon.value = iconMap[id] || '典'
     } else {
-      // 找不到分类时直接用路由参数作为名称显示
       categoryName.value = isNumeric ? '攻略分类' : categoryId
       categoryDescription.value = '精选游戏攻略'
     }
@@ -151,8 +154,27 @@ const loadCategory = async (categoryId) => {
 const loadArticles = async (categoryId) => {
   loading.value = true
   try {
-    // 如果是中文名，先转成数字 ID
+    // 处理"全部"分类 - 不传分类ID
+    if (categoryId === 'all') {
+      const params = {
+        page: currentPage.value,
+        size: pageSize.value
+      }
+      const res = await articleApi.getList(params)
+      if (res.code === 200) {
+        articles.value = res.data || []
+        total.value = res.total || 0
+      } else {
+        articles.value = []
+        total.value = 0
+      }
+      loading.value = false
+      return
+    }
+
     let realId = categoryId
+
+    // 如果是中文名，先转成数字 ID
     if (!/^\d+$/.test(categoryId)) {
       try {
         const catRes = await categoryApi.getByName(categoryId)
@@ -161,13 +183,13 @@ const loadArticles = async (categoryId) => {
         }
       } catch (e) { /* 找不到分类，用原参数 */ }
     }
-    
+
     const params = {
       categoryId: realId,
       page: currentPage.value,
       size: pageSize.value
     }
-    
+
     const res = await articleApi.getList(params)
     if (res.code === 200) {
       articles.value = res.data || []
@@ -198,7 +220,15 @@ const goToPage = (page) => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+const getArticleLink = (article) => {
+  return `/article/${article.id}`
+}
+
 onMounted(() => {
+  // 从 URL query 参数读取排序方式
+  if (route.query.sort) {
+    sortBy.value = route.query.sort
+  }
   loadData(route.params.id)
 })
 
@@ -209,8 +239,13 @@ watch(() => route.params.id, (newId) => {
   }
 })
 
+watch(() => route.query.sort, (newSort) => {
+  if (newSort) {
+    sortBy.value = newSort
+  }
+})
+
 watch(sortBy, () => {
-  // 排序逻辑可以在后端实现，这里简单处理
   loadArticles(route.params.id)
 })
 </script>

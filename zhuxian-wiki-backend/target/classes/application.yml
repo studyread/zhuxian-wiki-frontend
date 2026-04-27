@@ -10,9 +10,12 @@ spring:
       force: true
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/zhuxian_wiki?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/zhuxian_wiki?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&maxAllowedPacket=16777216
     username: root
     password: 123456
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
   data:
     redis:
       host: localhost
@@ -29,9 +32,9 @@ mybatis-plus:
 
 # AI配置
 ai:
-  api-url: https://api.siliconflow.cn/v1/chat/completions
-  api-key: sk-tmwaxkxpykstfztolficichfwjxipnqnobdvcyrgxdvxazsr
-  model: Qwen/Qwen2.5-7B-Instruct
+  api-url: https://api.minimaxi.com/v1/text/chatcompletion_v2
+  api-key: sk-cp-1QL09OOi5d9rUmiiqyqYuIEOuAGjgLBIGg9OjtqXKXAc0VUmaa_3GvKEBgaMIndKzax_sPBDgI6H6bXQUDylobJfbd9I3nCzD_XDcBPw4mXfJ2kBbUlsttk
+  model: MiniMax-M2.5
   max-tokens: 4000
   temperature: 0.7
 

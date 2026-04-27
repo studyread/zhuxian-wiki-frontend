@@ -5,6 +5,41 @@ const request = axios.create({
   timeout: 10000
 })
 
+// 请求拦截器：自动携带用户ID到请求头
+// 优先级：管理员ID > 普通用户ID
+request.interceptors.request.use(
+  config => {
+    // 优先使用管理员ID
+    const adminInfo = localStorage.getItem('admin_info')
+    if (adminInfo) {
+      try {
+        const admin = JSON.parse(adminInfo)
+        if (admin && admin.id) {
+          config.headers['X-User-Id'] = admin.id
+          return config
+        }
+      } catch (e) {
+        // ignore parse error
+      }
+    }
+
+    // 其次使用普通用户ID
+    const userInfo = localStorage.getItem('user_info')
+    if (userInfo) {
+      try {
+        const user = JSON.parse(userInfo)
+        if (user && user.id) {
+          config.headers['X-User-Id'] = user.id
+        }
+      } catch (e) {
+        // ignore parse error
+      }
+    }
+    return config
+  },
+  error => Promise.reject(error)
+)
+
 request.interceptors.response.use(
   response => response.data,
   error => {
@@ -21,7 +56,14 @@ export const articleApi = {
   search: (keyword) => request.get('/articles/search', { params: { keyword } }),
   save: (data) => request.post('/articles', data),
   update: (id, data) => request.put(`/articles/${id}`, data),
-  delete: (id) => request.delete(`/articles/${id}`)
+  delete: (id) => request.delete(`/articles/${id}`),
+  like: (id) => request.post(`/articles/${id}/like`),
+  likeWithUser: (id) => request.post(`/articles/${id}/like/user`),
+  getLikeStatus: (id) => request.get(`/articles/${id}/like/status`),
+  collect: (id) => request.post(`/articles/${id}/collect`),
+  getCollectStatus: (id) => request.get(`/articles/${id}/collect/status`),
+  getUserCollects: () => request.get('/user/collects'),
+  getUserArticles: (userId) => request.get(`/articles/user/${userId}`)
 }
 
 export const categoryApi = {
@@ -43,6 +85,11 @@ export const aiApi = {
   chat: (data) => request.post('/ai/chat', data),
   getHistory: (sessionId) => request.get(`/ai/history/${sessionId}`),
   clearHistory: (sessionId) => request.delete(`/ai/history/${sessionId}`)
+}
+
+export const statsApi = {
+  getStatistics: () => request.get('/stats'),
+  getCategoryStats: () => request.get('/stats/categories')
 }
 
 export default request

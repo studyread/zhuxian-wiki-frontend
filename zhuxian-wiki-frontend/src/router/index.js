@@ -34,7 +34,19 @@ const routes = [
   {
     path: '/user',
     name: 'User',
-    component: () => import('@/views/User.vue')
+    component: () => import('@/views/User.vue'),
+    children: [
+      {
+        path: 'favorites',
+        name: 'UserFavorites',
+        component: () => import('@/views/UserFavorites.vue')
+      },
+      {
+        path: 'settings',
+        name: 'UserSettings',
+        component: () => import('@/views/UserSettings.vue')
+      }
+    ]
   },
   {
     path: '/about',

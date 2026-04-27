@@ -3,22 +3,48 @@
       <!-- 工具栏 -->
       <div class="toolbar">
         <div class="toolbar-left">
-          <select v-model="filters.categoryId" class="filter-select">
+          <router-link to="/dashboard" class="btn-back">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+            返回
+          </router-link>
+          <!-- 搜索框 -->
+          <div class="search-box">
+            <input
+              v-model="filters.keyword"
+              type="text"
+              placeholder="搜索词条标题..."
+              @keyup.enter="handleSearch"
+              class="search-input"
+            />
+            <button @click="handleSearch" class="search-btn">搜索</button>
+          </div>
+          <select v-model="filters.categoryId" class="filter-select" @change="loadData">
             <option value="">全部分类</option>
             <option v-for="cat in categories" :key="cat.id" :value="cat.id">
               {{ cat.name }}
             </option>
           </select>
-          <select v-model="filters.status" class="filter-select">
+          <select v-model="filters.status" class="filter-select" @change="loadData">
+            <option value="">全部状态</option>
             <option value="1">已发布</option>
             <option value="0">草稿</option>
-            <option value="">全部</option>
           </select>
         </div>
         <div class="toolbar-right">
           <button class="btn-export" @click="handleExport">导出知识库</button>
-          <router-link to="/admin/knowledge/create" class="btn-primary">新增词条</router-link>
+          <router-link to="/knowledge/create" class="btn-primary">新增词条</router-link>
         </div>
+      </div>
+
+      <!-- 批量操作栏 -->
+      <div v-if="selectedIds.length > 0" class="batch-toolbar">
+        <span class="batch-tip">已选择 {{ selectedIds.length }} 项</span>
+        <button @click="handleBatchDelete" class="btn-batch danger">批量删除</button>
+        <button @click="handleBatchPublish" class="btn-batch">批量发布</button>
+        <button @click="handleBatchDraft" class="btn-batch">批量设为草稿</button>
+        <button @click="selectedIds = []" class="btn-batch cancel">取消选择</button>
       </div>
 
       <!-- 列表 -->
@@ -26,6 +52,9 @@
         <table class="data-table">
           <thead>
             <tr>
+              <th class="col-checkbox">
+                <input type="checkbox" v-model="selectAll" @change="handleSelectAll" />
+              </th>
               <th>ID</th>
               <th>标题</th>
               <th>分类</th>
@@ -38,7 +67,10 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in list" :key="item.id">
+            <tr v-for="item in list" :key="item.id" :class="{ selected: selectedIds.includes(item.id) }">
+              <td class="col-checkbox">
+                <input type="checkbox" :value="item.id" v-model="selectedIds" />
+              </td>
               <td>{{ item.id }}</td>
               <td class="title-cell">
                 <a :href="`/knowledge/${item.id}`" target="_blank">
@@ -61,14 +93,21 @@
               <td>{{ formatDate(item.updatedAt) }}</td>
               <td>
                 <button class="btn-text" @click="handleEdit(item.id)">编辑</button>
+                <button class="btn-text" @click="handleToggleStatus(item)">
+                  {{ item.status === 1 ? '撤销' : '发布' }}
+                </button>
                 <button class="btn-text danger" @click="handleDelete(item.id)">删除</button>
               </td>
+            </tr>
+            <tr v-if="list.length === 0">
+              <td colspan="10" class="empty-cell">暂无数据</td>
             </tr>
           </tbody>
         </table>
 
         <!-- 分页 -->
         <div class="pagination">
+          <span class="total-count">共 {{ total }} 条</span>
           <button
             class="page-btn"
             :disabled="page <= 1"
@@ -104,6 +143,7 @@
           </div>
           <div class="modal-footer">
             <button @click="downloadMd" class="btn-primary">下载 Markdown</button>
+            <button @click="showExport = false" class="btn-secondary">关闭</button>
           </div>
         </div>
       </div>
@@ -111,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { knowledgeEntryApi, knowledgeCategoryApi } from '@/api/knowledge'
@@ -125,13 +165,16 @@ const pageSize = ref(10)
 const total = ref(0)
 const showExport = ref(false)
 const exportContent = ref('')
+const selectedIds = ref([])
+const selectAll = ref(false)
 
 const filters = reactive({
   categoryId: '',
-  status: 1
+  status: '',
+  keyword: ''
 })
 
-const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
+const totalPages = computed(() => Math.ceil(total.value / pageSize.value) || 1)
 
 const getCategoryName = (id) => {
   const cat = categories.value.find(c => c.id === id)
@@ -151,41 +194,125 @@ const formatDate = (date) => {
 const loadData = async () => {
   const params = {
     page: page.value,
-    size: pageSize.value,
-    status: filters.status || undefined
+    size: pageSize.value
   }
   if (filters.categoryId) {
     params.categoryId = filters.categoryId
   }
-  const res = await knowledgeEntryApi.list(params)
-  if (res.code === 200) {
-    list.value = res.data
-    total.value = res.total
+  if (filters.status !== '') {
+    params.status = parseInt(filters.status)
+  }
+  if (filters.keyword) {
+    params.keyword = filters.keyword
+  }
+
+  try {
+    const res = await knowledgeEntryApi.list(params)
+    if (res.code === 200) {
+      list.value = res.data || []
+      total.value = res.total || 0
+    }
+  } catch (e) {
+    console.error('加载数据失败', e)
   }
 }
 
 const loadCategories = async () => {
-  const res = await knowledgeCategoryApi.list()
-  if (res.code === 200) {
-    categories.value = res.data
+  try {
+    const res = await knowledgeCategoryApi.list()
+    if (res.code === 200) {
+      categories.value = res.data || []
+    }
+  } catch (e) {
+    console.error('加载分类失败', e)
   }
 }
 
+const handleSearch = () => {
+  page.value = 1
+  loadData()
+}
+
 const handleEdit = (id) => {
-  router.push(`/admin/knowledge/edit/${id}`)
+  router.push(`/knowledge/edit/${id}`)
 }
 
 const handleDelete = async (id) => {
   if (!confirm('确定删除该词条？')) return
-  await knowledgeEntryApi.delete(id)
-  loadData()
+  try {
+    await knowledgeEntryApi.delete(id)
+    loadData()
+  } catch (e) {
+    alert('删除失败')
+  }
+}
+
+const handleToggleStatus = async (item) => {
+  const newStatus = item.status === 1 ? 0 : 1
+  try {
+    await knowledgeEntryApi.update(item.id, { status: newStatus })
+    loadData()
+  } catch (e) {
+    alert('操作失败')
+  }
+}
+
+// 批量选择
+const handleSelectAll = () => {
+  if (selectAll.value) {
+    selectedIds.value = list.value.map(item => item.id)
+  } else {
+    selectedIds.value = []
+  }
+}
+
+watch(selectedIds, () => {
+  selectAll.value = list.value.length > 0 && selectedIds.value.length === list.value.length
+})
+
+// 批量删除
+const handleBatchDelete = async () => {
+  if (!confirm(`确定删除选中的 ${selectedIds.value.length} 个词条？`)) return
+  try {
+    await Promise.all(selectedIds.value.map(id => knowledgeEntryApi.delete(id)))
+    selectedIds.value = []
+    loadData()
+  } catch (e) {
+    alert('批量删除失败')
+  }
+}
+
+// 批量发布
+const handleBatchPublish = async () => {
+  try {
+    await Promise.all(selectedIds.value.map(id => knowledgeEntryApi.update(id, { status: 1 })))
+    selectedIds.value = []
+    loadData()
+  } catch (e) {
+    alert('批量发布失败')
+  }
+}
+
+// 批量设为草稿
+const handleBatchDraft = async () => {
+  try {
+    await Promise.all(selectedIds.value.map(id => knowledgeEntryApi.update(id, { status: 0 })))
+    selectedIds.value = []
+    loadData()
+  } catch (e) {
+    alert('批量操作失败')
+  }
 }
 
 const handleExport = async () => {
-  const res = await knowledgeEntryApi.export()
-  if (res.code === 200) {
-    exportContent.value = res.data
-    showExport.value = true
+  try {
+    const res = await knowledgeEntryApi.export()
+    if (res.code === 200) {
+      exportContent.value = res.data
+      showExport.value = true
+    }
+  } catch (e) {
+    alert('导出失败')
   }
 }
 
@@ -222,14 +349,47 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .toolbar-left {
   display: flex;
   gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* 搜索框 */
+.search-box {
+  display: flex;
+  gap: 0;
+}
+
+.search-input {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  font-size: 12px;
+  width: 180px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--color-cinnabar);
+}
+
+.search-btn {
+  padding: 7px 12px;
+  background: var(--color-cinnabar);
+  color: white;
+  border: 1px solid var(--color-cinnabar);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .filter-select {
@@ -238,11 +398,59 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   font-size: 12px;
   background: var(--color-white);
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--color-cinnabar);
 }
 
 .toolbar-right {
   display: flex;
   gap: 10px;
+}
+
+/* 批量操作栏 */
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fef3c7;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.batch-tip {
+  font-size: 12px;
+  color: #92400e;
+  font-weight: 500;
+}
+
+.btn-batch {
+  padding: 4px 10px;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--color-ink);
+}
+
+.btn-batch.danger {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.btn-batch.danger:hover {
+  background: #dc2626;
+}
+
+.btn-batch.cancel {
+  color: var(--color-ink-muted);
 }
 
 .btn-primary {
@@ -289,6 +497,17 @@ onMounted(() => {
   font-weight: 600;
   color: var(--color-ink);
   background: var(--color-paper);
+  position: sticky;
+  top: 0;
+}
+
+.col-checkbox {
+  width: 40px;
+  text-align: center;
+}
+
+.data-table tr.selected {
+  background: #fef3c7;
 }
 
 .title-cell a {
@@ -343,12 +562,24 @@ onMounted(() => {
   color: #dc2626;
 }
 
+.empty-cell {
+  text-align: center;
+  color: var(--color-ink-muted);
+  padding: 30px !important;
+}
+
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 12px;
   margin-top: 16px;
+  flex-shrink: 0;
+}
+
+.total-count {
+  font-size: 12px;
+  color: var(--color-ink-muted);
 }
 
 .page-btn {
@@ -436,5 +667,45 @@ onMounted(() => {
   border-top: 1px solid var(--color-border);
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-secondary {
+  padding: 7px 14px;
+  background: var(--color-white);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--color-paper) 0%, #fff 100%);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.25s ease;
+}
+
+.btn-back:hover {
+  background: linear-gradient(135deg, var(--color-cinnabar) 0%, #d4726a 100%);
+  border-color: var(--color-cinnabar);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(196, 92, 72, 0.3);
+}
+
+.btn-back:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(196, 92, 72, 0.2);
 }
 </style>
