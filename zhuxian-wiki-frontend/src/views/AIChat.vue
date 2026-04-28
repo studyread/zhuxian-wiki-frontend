@@ -289,7 +289,7 @@ const loadHistory = async () => {
 // 加载用户的会话列表
 const loadSessionList = async () => {
   try {
-    const response = await fetch('http://localhost:8080/api/ai/history', {
+    const response = await fetch('/api/ai/history', {
       headers: {
         'X-User-Id': userId.value.toString()
       }
@@ -314,7 +314,7 @@ const loadSessionList = async () => {
 // 加载指定会话的消息
 const loadSessionMessages = async (sid) => {
   try {
-    const response = await fetch(`http://localhost:8080/api/ai/session/${encodeURIComponent(sid)}`)
+    const response = await fetch(`/api/ai/session/${encodeURIComponent(sid)}`)
     const data = await response.json()
 
     if (data.code === 200 && data.data && data.data.length > 0) {
@@ -356,7 +356,7 @@ const deleteSession = async (sid) => {
   if (!confirm('确定要删除这个会话吗？')) return
 
   try {
-    const response = await fetch(`http://localhost:8080/api/ai/session/${encodeURIComponent(sid)}`, {
+    const response = await fetch(`/api/ai/session/${encodeURIComponent(sid)}`, {
       method: 'DELETE',
       headers: {
         'X-User-Id': userId.value.toString()
@@ -417,7 +417,7 @@ const sendMessage = async () => {
       headers['X-User-Id'] = userId.value.toString()
     }
     
-    const response = await fetch('http://localhost:8080/api/ai/chat', {
+    const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody)
