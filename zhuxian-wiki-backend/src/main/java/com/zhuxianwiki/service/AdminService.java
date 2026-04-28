@@ -15,8 +15,21 @@ public class AdminService extends ServiceImpl<AdminMapper, Admin> {
     
     public Admin login(String username, String password) {
         Admin admin = baseMapper.selectByUsername(username);
-        if (admin != null && passwordEncoder.matches(password, admin.getPassword())) {
-            return admin;
+        if (admin != null) {
+            String storedPassword = admin.getPassword();
+            boolean passwordMatch = false;
+            
+            // 检查是否是BCrypt加密密码
+            if (storedPassword != null && storedPassword.startsWith("$2a$")) {
+                passwordMatch = passwordEncoder.matches(password, storedPassword);
+            } else {
+                // 明文密码验证
+                passwordMatch = password.equals(storedPassword);
+            }
+            
+            if (passwordMatch) {
+                return admin;
+            }
         }
         return null;
     }

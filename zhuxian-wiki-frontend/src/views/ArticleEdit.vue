@@ -230,10 +230,10 @@ const handleCoverUpload = (e) => {
   const reader = new FileReader()
   reader.onload = (event) => {
     const base64 = event.target.result
-    // Base64 编码会增加约33%体积，检查转换后大小
+    // Base64 编码会增加约33%体积，允许最大7MB的base64（对应原图约5MB）
     const base64Size = new Blob([base64]).size
-    if (base64Size > 2 * 1024 * 1024) {
-      alert('图片转码后太大（' + Math.round(base64Size / 1024) + 'KB），请选择更小的图片（建议不超过1.5MB）')
+    if (base64Size > 7 * 1024 * 1024) {
+      alert('图片转码后太大（' + Math.round(base64Size / 1024) + 'KB），请选择不超过 5MB 的图片')
       return
     }
     form.coverImage = base64
