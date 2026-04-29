@@ -21,40 +21,46 @@ const routes = [
     component: () => import('./views/admin/AdminLogin.vue')
   },
   {
-    path: '/dashboard',
-    name: 'AdminDashboard',
-    component: () => import('./views/admin/AdminDashboard.vue'),
-    beforeEnter: requireAdminAuth
-  },
-  {
-    path: '/knowledge',
-    name: 'AdminKnowledge',
-    component: () => import('./views/admin/KnowledgeManage.vue'),
-    beforeEnter: requireAdminAuth
-  },
-  {
-    path: '/knowledge/create',
-    name: 'AdminKnowledgeCreate',
-    component: () => import('./views/admin/KnowledgeEdit.vue'),
-    beforeEnter: requireAdminAuth
-  },
-  {
-    path: '/knowledge/edit/:id',
-    name: 'AdminKnowledgeEdit',
-    component: () => import('./views/admin/KnowledgeEdit.vue'),
-    beforeEnter: requireAdminAuth
-  },
-  {
-    path: '/category',
-    name: 'AdminCategory',
-    component: () => import('./views/admin/CategoryManage.vue'),
-    beforeEnter: requireAdminAuth
-  },
-  {
-    path: '/logs',
-    name: 'AdminLogs',
-    component: () => import('./views/admin/LogManage.vue'),
-    beforeEnter: requireAdminAuth
+    path: '/',
+    component: () => import('./views/admin/AdminLayout.vue'),
+    beforeEnter: requireAdminAuth,
+    children: [
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('./views/admin/AdminDashboard.vue')
+      },
+      {
+        path: 'knowledge',
+        name: 'AdminKnowledge',
+        component: () => import('./views/admin/KnowledgeManage.vue')
+      },
+      {
+        path: 'knowledge/create',
+        name: 'AdminKnowledgeCreate',
+        component: () => import('./views/admin/KnowledgeEdit.vue')
+      },
+      {
+        path: 'knowledge/edit/:id',
+        name: 'AdminKnowledgeEdit',
+        component: () => import('./views/admin/KnowledgeEdit.vue')
+      },
+      {
+        path: 'category',
+        name: 'AdminCategory',
+        component: () => import('./views/admin/CategoryManage.vue')
+      },
+      {
+        path: 'logs',
+        name: 'AdminLogs',
+        component: () => import('./views/admin/LogManage.vue')
+      },
+      {
+        path: 'settings',
+        name: 'AdminSettings',
+        component: () => import('./views/admin/Settings.vue')
+      }
+    ]
   }
 ]
 

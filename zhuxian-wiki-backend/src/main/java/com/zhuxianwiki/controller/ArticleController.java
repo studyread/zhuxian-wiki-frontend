@@ -80,14 +80,12 @@ public class ArticleController {
             @RequestHeader(value = "X-User-Id", required = false) Long authorId) {
         Map<String, Object> result = new HashMap<>();
         
-        if (authorId == null) {
-            result.put("code", 401);
-            result.put("message", "请先登录");
-            return result;
+        // 未登录时 authorId 为 null 仍可发布（作为游客）
+        if (authorId != null) {
+            article.setAuthorId(authorId);
         }
         
         try {
-            article.setAuthorId(authorId);
             // 设置默认状态为已发布（1=已发布，0=草稿）
             if (article.getStatus() == null) {
                 article.setStatus(1);
@@ -110,14 +108,10 @@ public class ArticleController {
             @RequestHeader(value = "X-User-Id", required = false) Long authorId) {
         Map<String, Object> result = new HashMap<>();
         
-        if (authorId == null) {
-            result.put("code", 401);
-            result.put("message", "请先登录");
-            return result;
+        if (authorId != null) {
+            article.setAuthorId(authorId);
         }
         
-        article.setId(id);
-        article.setAuthorId(authorId);
         boolean success = articleService.updateArticle(article);
         
         result.put("code", success ? 200 : 500);

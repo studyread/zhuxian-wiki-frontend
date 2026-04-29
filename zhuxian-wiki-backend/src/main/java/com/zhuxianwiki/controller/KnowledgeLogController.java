@@ -26,4 +26,12 @@ public class KnowledgeLogController {
         result.put("total", pageResult.getTotal());
         return result;
     }
+    
+    @GetMapping("/stats")
+    public Map<String, Object> stats() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("data", logService.getStats());
+        return result;
+    }
 }

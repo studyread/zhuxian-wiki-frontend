@@ -48,30 +48,58 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { articleApi } from '@/api/article'
 
 const route = useRoute()
 
 const categories = ref([
   { name: '全部', path: '/', icon: '全' },
-  { name: '门派', path: '/category/门派', icon: '门' },
-  { name: '职业', path: '/category/职业', icon: '职' },
-  { name: '攻略', path: '/category/攻略', icon: '攻' },
-  { name: '副本', path: '/category/副本', icon: '副' },
-  { name: '装备', path: '/category/装备', icon: '装' },
-  { name: '宠物', path: '/category/宠物', icon: '宠' },
-  { name: '坐骑', path: '/category/坐骑', icon: '骑' },
+  { name: '门派', path: '/category/1', icon: '门' },
+  { name: '职业', path: '/category/2', icon: '职' },
+  { name: '攻略', path: '/category/3', icon: '攻' },
+  { name: '副本', path: '/category/4', icon: '副' },
+  { name: '装备', path: '/category/5', icon: '装' },
+  { name: '宠物', path: '/category/6', icon: '宠' },
+  { name: '坐骑', path: '/category/7', icon: '骑' },
 ])
 
 const hotTags = ref(['新手入门', '升级攻略', '门派推荐', 'PVP', '副本攻略', '装备打造'])
 
-const recentArticles = ref([
-  { id: 1, title: '青云门新手入门指南', time: '2小时前' },
-  { id: 2, title: '天音寺职业攻略', time: '5小时前' },
-  { id: 3, title: '副本通关技巧分享', time: '1天前' },
-  { id: 4, title: '装备强化成功率分析', time: '2天前' },
-])
+const recentArticles = ref([])
+
+// 格式化时间
+const formatTime = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now - date
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 30) return `${days}天前`
+  return date.toLocaleDateString('zh-CN')
+}
+
+// 加载最近更新
+const loadRecentArticles = async () => {
+  try {
+    const res = await articleApi.getLatest()
+    if (res.code === 200 && res.data) {
+      recentArticles.value = res.data.slice(0, 5).map(article => ({
+        id: article.id,
+        title: article.title,
+        time: formatTime(article.createdAt || article.updatedAt)
+      }))
+    }
+  } catch (error) {
+    console.error('加载最近更新失败:', error)
+  }
+}
 
 const isActiveCategory = (path) => {
   if (path === '/') {
@@ -79,6 +107,10 @@ const isActiveCategory = (path) => {
   }
   return route.path === path || route.query.category === path.split('/')[2]
 }
+
+onMounted(() => {
+  loadRecentArticles()
+})
 </script>
 
 <style scoped>

@@ -310,6 +310,9 @@ const handleRegister = async () => {
 const handleLogout = () => {
   localStorage.removeItem('user_info')
   localStorage.removeItem('user_token')
+  // 清除 AI 聊天会话信息，下次进入聊天页面时会创建新会话
+  localStorage.removeItem('ai_chat_session_id')
+  localStorage.removeItem('ai_chat_user_session')
   userInfo.value = null
   window.location.reload()
 }

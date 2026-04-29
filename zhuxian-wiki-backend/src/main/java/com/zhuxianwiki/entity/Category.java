@@ -25,11 +25,9 @@ public class Category {
     
     private Integer status;
     
-@TableField(fill = FieldFill.INSERT)
-    @TableField("create_time")
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    @TableField("update_time")
+    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }

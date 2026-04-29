@@ -630,7 +630,7 @@ const handleSubmit = async () => {
     } else {
       await knowledgeEntryApi.create(form)
     }
-    router.push('/admin/knowledge')
+    router.push('/knowledge')
   } catch (error) {
     alert('保存失败')
   } finally {

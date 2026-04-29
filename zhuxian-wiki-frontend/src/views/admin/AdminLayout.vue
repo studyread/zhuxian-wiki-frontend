@@ -16,7 +16,7 @@
           <router-link
             v-for="item in knowledgeMenu"
             :key="item.path"
-            :to="item.path"
+            :to="'/' + item.path"
             class="nav-item"
             :class="{ active: isActive(item.path) }"
           >
@@ -30,7 +30,7 @@
           <router-link
             v-for="item in systemMenu"
             :key="item.path"
-            :to="item.path"
+            :to="'/' + item.path"
             class="nav-item"
             :class="{ active: isActive(item.path) }"
           >

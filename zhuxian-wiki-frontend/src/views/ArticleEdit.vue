@@ -49,6 +49,16 @@
               class="form-input" 
               placeholder="多个标签用逗号分隔，如：青云门,新手,攻略"
             />
+            <!-- 热门标签快速选择 -->
+            <div class="hot-tags">
+              <span class="hot-tags-label">热门标签：</span>
+              <span 
+                v-for="tag in hotTags" 
+                :key="tag"
+                class="hot-tag-item"
+                @click="addTag(tag)"
+              >{{ tag }}</span>
+            </div>
           </div>
         </div>
 
@@ -161,16 +171,28 @@ const saving = ref(false)
 const coverInput = ref(null)
 const contentTextarea = ref(null)
 
+// 导航分类 - 与首页导航分类对应
 const categories = ref([
-  { id: 1, name: '门派攻略' },
-  { id: 2, name: '职业指南' },
-  { id: 3, name: '技能解析' },
-  { id: 4, name: '副本通关' },
-  { id: 5, name: '装备系统' },
-  { id: 6, name: '强化技巧' },
-  { id: 7, name: 'PVP指南' },
-  { id: 8, name: '任务攻略' }
+  { id: 1, name: '门派' },
+  { id: 2, name: '职业' },
+  { id: 3, name: '攻略' },
+  { id: 4, name: '副本' },
+  { id: 5, name: '装备' },
+  { id: 6, name: '宠物' },
+  { id: 7, name: '坐骑' }
 ])
+
+// 热门标签预设
+const hotTags = ['新手入门', '升级攻略', '门派推荐', 'PVP', '副本攻略', '装备打造']
+
+// 快速添加标签
+const addTag = (tag) => {
+  const currentTags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(t => t) : []
+  if (!currentTags.includes(tag)) {
+    currentTags.push(tag)
+    form.tags = currentTags.join(', ')
+  }
+}
 
 const form = reactive({
   title: '',
@@ -222,8 +244,8 @@ const handleCoverUpload = (e) => {
   const file = e.target.files?.[0]
   if (!file) return
 
-  if (file.size > 5 * 1024 * 1024) {
-    alert('图片大小不能超过 5MB')
+  if (file.size > 50 * 1024 * 1024) {
+    alert('图片大小不能超过 50MB')
     return
   }
 
@@ -531,6 +553,38 @@ onMounted(() => {
   background: var(--color-cinnabar);
   border-color: var(--color-cinnabar);
   color: white;
+}
+
+/* 热门标签 */
+.hot-tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hot-tags-label {
+  font-size: var(--text-xs);
+  color: var(--color-ink-muted);
+}
+
+.hot-tag-item {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  color: var(--color-ochre);
+  background: rgba(196, 92, 72, 0.08);
+  border: 1px solid rgba(196, 92, 72, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hot-tag-item:hover {
+  background: var(--color-cinnabar);
+  color: white;
+  border-color: var(--color-cinnabar);
 }
 
 /* 提交按钮 */

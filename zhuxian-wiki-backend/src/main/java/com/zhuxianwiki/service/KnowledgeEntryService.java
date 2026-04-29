@@ -103,10 +103,10 @@ public class KnowledgeEntryService extends ServiceImpl<KnowledgeEntryMapper, Kno
     
     private void logOperation(String operation, String title, String description, Long operatorId) {
         KnowledgeLog log = new KnowledgeLog();
-        log.setOperation(operation);
-        log.setTitle(title);
-        log.setDescription(description);
-        log.setOperatorId(operatorId);
+        log.setAction(operation);
+        log.setTargetType("entry");
+        log.setDetail("新增词条: " + title);
+        log.setUserId(operatorId);
         log.setCreatedAt(LocalDateTime.now());
         logMapper.insert(log);
     }

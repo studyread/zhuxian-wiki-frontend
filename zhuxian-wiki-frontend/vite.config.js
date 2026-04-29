@@ -2,7 +2,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // 开发模式不用 base，构建模式用 /wiki/
+  base: command === 'serve' ? '/' : '/wiki/',
   plugins: [vue()],
   resolve: {
     alias: {
@@ -27,4 +29,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

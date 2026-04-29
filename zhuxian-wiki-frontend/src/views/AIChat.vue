@@ -115,6 +115,7 @@ import { ref, nextTick, onMounted, watch } from 'vue'
 import { aiApi } from '@/api/article'
 
 const SESSION_KEY = 'ai_chat_session_id'
+const USER_SESSION_KEY = 'ai_chat_user_session'  // 用于存储用户与会话的关联
 const MAX_HISTORY = 20  // 保留10轮对话（20条消息：10条用户 + 10条AI）
 
 const messages = ref([])
@@ -264,6 +265,30 @@ const getUserInfo = () => {
 // 加载历史消息
 const loadHistory = async () => {
   getUserInfo()
+
+  // 检查用户登录状态是否发生变化（从登录变为游客，即退出登录）
+  const savedUserSession = localStorage.getItem(USER_SESSION_KEY)
+  const currentUserId = userId.value || 'guest'
+  const previousUserId = savedUserSession || 'guest'
+  
+  // 只有在退出登录时（从有用户ID变为游客）才创建新会话
+  // 登录或刷新页面时保留原有会话
+  const userLoggedOut = previousUserId !== 'guest' && currentUserId === 'guest'
+  
+  if (userLoggedOut) {
+    // 保存当前用户标识
+    localStorage.setItem(USER_SESSION_KEY, currentUserId)
+    // 创建新会话
+    const newSid = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+    localStorage.setItem(SESSION_KEY, newSid)
+    sessionId.value = newSid
+    messages.value = []
+    sessionList.value = []
+    return
+  }
+  
+  // 保存当前用户标识（用于下次检测）
+  localStorage.setItem(USER_SESSION_KEY, currentUserId)
 
   // 获取或创建 sessionId
   let sid = localStorage.getItem(SESSION_KEY)

@@ -12,9 +12,11 @@ public class KnowledgeLog {
     @TableId(type = IdType.AUTO)
     private Long id;
     
-    private String operation;
-    private String title;
-    private String description;
-    private Long operatorId;
+    private Long userId;
+    private String action;
+    private String targetType;
+    private Long targetId;
+    private String detail;
+    private String ipAddress;
     private LocalDateTime createdAt;
 }
