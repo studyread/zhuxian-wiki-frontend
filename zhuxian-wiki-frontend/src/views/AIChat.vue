@@ -13,34 +13,44 @@
       </button>
     </div>
 
-    <!-- 会话列表侧边栏 -->
-    <div v-if="showSessionList && isLoggedIn" class="session-sidebar">
-      <div class="session-header">
-        <h3>我的会话</h3>
-        <button class="new-session-btn" @click="createNewSession">+ 新会话</button>
-      </div>
-      <div class="session-list">
-        <div
-          v-for="session in sessionList"
-          :key="session.sessionId"
-          class="session-item"
-          :class="{ active: sessionId === session.sessionId }"
-          @click="switchSession(session.sessionId)"
-        >
-          <div class="session-title">{{ session.title }}</div>
-          <div class="session-meta">
-            <span class="session-count">{{ session.messageCount }}条消息</span>
-            <button class="delete-btn" @click.stop="deleteSession(session.sessionId)">删除</button>
+    <!-- 会话列表浮层（点击外部关闭，不挤压主区） -->
+    <transition name="session-fade">
+      <div v-if="showSessionList && isLoggedIn" class="session-popup" ref="sessionPopup">
+        <div class="session-header">
+          <h3>我的会话</h3>
+          <button class="new-session-btn" @click="createNewSession">+ 新会话</button>
+        </div>
+        <div class="session-list">
+          <div
+            v-for="session in limitedSessionList"
+            :key="session.sessionId"
+            class="session-item"
+            :class="{ active: currentSessionId === session.sessionId }"
+            @click="switchSession(session.sessionId)"
+          >
+            <div class="session-title">{{ session.title }}</div>
+            <div class="session-meta">
+              <span class="session-count">{{ session.messageCount }}条消息</span>
+              <button class="delete-btn" @click.stop="deleteSession(session.sessionId)">删除</button>
+            </div>
+          </div>
+          <div v-if="sessionList.length === 0" class="no-sessions">
+            暂无会话记录
+          </div>
+          <div v-if="sessionList.length > MAX_SESSION_DISPLAY" class="session-limit-tip">
+            ⚠ 最多显示最近 {{ MAX_SESSION_DISPLAY }} 条会话
           </div>
         </div>
-        <div v-if="sessionList.length === 0" class="no-sessions">
-          暂无会话记录
-        </div>
       </div>
-    </div>
+    </transition>
 
-    <!-- 聊天区域 -->
-    <div class="chat-container" :class="{ 'with-sidebar': showSessionList && isLoggedIn }">
+    <!-- 聊天区域（不受会话列表影响） -->
+    <div class="chat-container">
+      <!-- 上下文摘要（仅内部使用，不显示给用户） -->
+      <div v-if="contextSummary" class="context-summary" style="display: none;">
+        <p class="context-text">{{ contextSummary }}</p>
+      </div>
+
       <!-- 消息列表 -->
       <div class="chat-messages" ref="messagesContainer">
         <!-- 欢迎消息 -->
@@ -74,13 +84,48 @@
           </div>
           <div class="message-content">
             <div class="message-bubble">
+              <!-- 加载中动画 -->
               <p v-if="msg.role === 'assistant' && msg.loading" class="loading-text">
                 <span class="loading-dot"></span>
                 <span class="loading-dot"></span>
                 <span class="loading-dot"></span>
               </p>
+              <!-- 消息内容 -->
               <div v-else v-html="formatMessage(msg.content)"></div>
+
+              <!-- AI回复：满意度反馈 -->
+              <div v-if="msg.role === 'assistant' && !msg.loading && msg.showFeedback" class="feedback-area">
+                <span class="feedback-label">回答有帮助吗？</span>
+                <button
+                  class="feedback-btn thumbs-up"
+                  :class="{ active: msg.feedbackRating === 1 }"
+                  @click="submitFeedback(msg, 1)"
+                  title="有帮助"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+                    <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                  </svg>
+                </button>
+                <button
+                  class="feedback-btn thumbs-down"
+                  :class="{ active: msg.feedbackRating === 0 }"
+                  @click="submitFeedback(msg, 0)"
+                  title="没帮助"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
+                    <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- 反馈提交后提示 -->
+              <div v-if="msg.role === 'assistant' && !msg.loading && msg.feedbackSubmitted" class="feedback-thanks">
+                {{ msg.feedbackRating === 1 ? '👍 感谢你的认可！' : '📝 已记录，我们会继续优化' }}
+              </div>
             </div>
+
             <span class="message-time">{{ msg.time }}</span>
           </div>
         </div>
@@ -111,22 +156,36 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { aiApi } from '@/api/article'
+import { useAIContext } from '@/composables/useAIContext'
+
+// AI 上下文管理
+const { saveContextSummary, getContextSummary, incrementMessageCount, shouldSummarize, clearContext: clearCtx, getSummaryText, getTopics } = useAIContext()
 
 const SESSION_KEY = 'ai_chat_session_id'
-const USER_SESSION_KEY = 'ai_chat_user_session'  // 用于存储用户与会话的关联
-const MAX_HISTORY = 20  // 保留10轮对话（20条消息：10条用户 + 10条AI）
+const USER_SESSION_KEY = 'ai_chat_user_session'
+const MAX_HISTORY = 20
+const MAX_SESSION_DISPLAY = 3
 
 const messages = ref([])
 const inputMessage = ref('')
 const loading = ref(false)
 const messagesContainer = ref(null)
+const sessionPopup = ref(null)
 const sessionId = ref('')
+const currentSessionId = ref('')
 const userId = ref(null)
 const isLoggedIn = ref(false)
-const showSessionList = ref(false)  // 控制会话列表显示
-const sessionList = ref([])  // 会话列表
+const showSessionList = ref(false)
+const sessionList = ref([])
+
+// AI 上下文摘要
+const contextSummary = ref('')
+const contextTopics = ref([])
+
+// 最多显示3条会话
+const limitedSessionList = computed(() => sessionList.value.slice(0, MAX_SESSION_DISPLAY))
 
 const quickQuestions = [
   '推荐一个适合新手的门派',
@@ -135,13 +194,31 @@ const quickQuestions = [
   '装备强化技巧',
 ]
 
-// 优化消息格式化 - 更美观的渲染
+// ========== 满意度反馈 ==========
+const submitFeedback = async (msg, rating) => {
+  if (msg.feedbackRating !== null) return
+
+  msg.feedbackRating = rating
+  msg.feedbackSubmitted = true
+
+  try {
+    await aiApi.submitFeedback({
+      sessionId: sessionId.value,
+      question: msg.question || '',
+      answer: msg.content,
+      rating: rating
+    })
+  } catch (e) {
+    console.error('反馈提交失败', e)
+  }
+}
+
+// ========== 消息格式化 ==========
 const formatMessage = (content) => {
   if (!content) return ''
 
   let html = content
 
-  // 转义 HTML 特殊字符（但保留已格式化的标签）
   const escapeHtml = (str) => {
     return str
       .replace(/&/g, '&amp;')
@@ -149,80 +226,47 @@ const formatMessage = (content) => {
       .replace(/>/g, '&gt;')
   }
 
-  // 分割文本，区分代码块和其他内容
   const segments = []
   let lastIndex = 0
   const codeBlockRegex = /```[\s\S]*?```/g
   let match
 
   while ((match = codeBlockRegex.exec(content)) !== null) {
-    // 添加代码块之前的普通文本
     if (match.index > lastIndex) {
-      segments.push({
-        type: 'text',
-        content: content.slice(lastIndex, match.index)
-      })
+      segments.push({ type: 'text', content: content.slice(lastIndex, match.index) })
     }
-    // 添加代码块
-    segments.push({
-      type: 'code',
-      content: match[0]
-    })
+    segments.push({ type: 'code', content: match[0] })
     lastIndex = match.index + match[0].length
   }
 
-  // 添加剩余的文本
   if (lastIndex < content.length) {
-    segments.push({
-      type: 'text',
-      content: content.slice(lastIndex)
-    })
+    segments.push({ type: 'text', content: content.slice(lastIndex) })
   }
 
-  // 处理每个片段
   const processedSegments = segments.map(segment => {
     if (segment.type === 'code') {
-      // 代码块：直接保留，不转义
       const codeContent = segment.content
         .replace(/^```(\w*)/, '')
         .replace(/```$/, '')
       return `<pre class="msg-code"><code>${escapeHtml(codeContent)}</code></pre>`
     } else {
-      // 普通文本：转义并处理 Markdown
       let text = escapeHtml(segment.content)
-
-      // 行内代码（要转义）
       text = text.replace(/`([^`]+)`/g, '<code class="msg-inline-code">$1</code>')
-
-      // 标题处理
       text = text.replace(/^### (.+)$/gm, '<h4 class="msg-h4">$1</h4>')
       text = text.replace(/^## (.+)$/gm, '<h3 class="msg-h3">$1</h3>')
       text = text.replace(/^# (.+)$/gm, '<h2 class="msg-h2">$1</h2>')
-
-      // 引用块
       text = text.replace(/^&gt; (.+)$/gm, '<blockquote class="msg-quote">$1</blockquote>')
-
-      // 列表处理
       text = text.replace(/^[-*] (.+)$/gm, '<li class="msg-li">$1</li>')
       text = text.replace(/(<li class="msg-li">.+?<\/li>\n?)+/g, '<ul class="msg-ul">$&</ul>')
-
-      // 加粗和斜体
       text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong class="msg-bold-italic">$1</strong>')
       text = text.replace(/\*\*(.+?)\*\*/g, '<strong class="msg-bold">$1</strong>')
       text = text.replace(/\*(.+?)\*/g, '<em class="msg-italic">$1</em>')
-
-      // 分割线
       text = text.replace(/^---+$/gm, '<hr class="msg-hr">')
-
-      // 换行处理
       text = text.replace(/\n\n/g, '</p><p class="msg-p">')
       text = text.replace(/\n/g, '<br>')
-
-      // 包裹段落
       if (!text.startsWith('<')) {
         text = '<p class="msg-p">' + text + '</p>'
       }
-
       return text
     }
   })
@@ -248,7 +292,7 @@ const sendQuickQuestion = (question) => {
   sendMessage()
 }
 
-// 获取用户信息
+// ========== 用户信息 ==========
 const getUserInfo = () => {
   const userInfo = localStorage.getItem('user_info')
   if (userInfo) {
@@ -262,48 +306,41 @@ const getUserInfo = () => {
   }
 }
 
-// 加载历史消息
+// ========== 历史消息加载 ==========
 const loadHistory = async () => {
   getUserInfo()
 
-  // 检查用户登录状态是否发生变化（从登录变为游客，即退出登录）
   const savedUserSession = localStorage.getItem(USER_SESSION_KEY)
   const currentUserId = userId.value || 'guest'
   const previousUserId = savedUserSession || 'guest'
-  
-  // 只有在退出登录时（从有用户ID变为游客）才创建新会话
-  // 登录或刷新页面时保留原有会话
+
   const userLoggedOut = previousUserId !== 'guest' && currentUserId === 'guest'
-  
+
   if (userLoggedOut) {
-    // 保存当前用户标识
     localStorage.setItem(USER_SESSION_KEY, currentUserId)
-    // 创建新会话
     const newSid = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
     localStorage.setItem(SESSION_KEY, newSid)
     sessionId.value = newSid
+    currentSessionId.value = newSid
     messages.value = []
     sessionList.value = []
     return
   }
-  
-  // 保存当前用户标识（用于下次检测）
+
   localStorage.setItem(USER_SESSION_KEY, currentUserId)
 
-  // 获取或创建 sessionId
   let sid = localStorage.getItem(SESSION_KEY)
   if (!sid) {
     sid = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
     localStorage.setItem(SESSION_KEY, sid)
   }
   sessionId.value = sid
+  currentSessionId.value = sid
 
   try {
     if (isLoggedIn.value && userId.value) {
-      // 登录用户：加载会话列表
       await loadSessionList()
     } else {
-      // 游客：加载指定会话的消息
       await loadSessionMessages(sid)
     }
   } catch (error) {
@@ -311,23 +348,20 @@ const loadHistory = async () => {
   }
 }
 
-// 加载用户的会话列表
 const loadSessionList = async () => {
   try {
     const response = await fetch('/api/ai/history', {
-      headers: {
-        'X-User-Id': userId.value.toString()
-      }
+      headers: { 'X-User-Id': userId.value.toString() }
     })
     const data = await response.json()
 
     if (data.code === 200 && data.data) {
       sessionList.value = data.data
-      // 如果有会话列表，加载最新会话的消息
       if (sessionList.value.length > 0) {
         const latestSession = sessionList.value[0]
-        sessionId.value = latestSession.sessionId
+        currentSessionId.value = latestSession.sessionId
         localStorage.setItem(SESSION_KEY, latestSession.sessionId)
+        sessionId.value = latestSession.sessionId
         await loadSessionMessages(latestSession.sessionId)
       }
     }
@@ -336,64 +370,114 @@ const loadSessionList = async () => {
   }
 }
 
-// 加载指定会话的消息
 const loadSessionMessages = async (sid) => {
   try {
     const response = await fetch(`/api/ai/session/${encodeURIComponent(sid)}`)
     const data = await response.json()
 
     if (data.code === 200 && data.data && data.data.length > 0) {
-      // 取最近20条
       const history = data.data.slice(-MAX_HISTORY)
       messages.value = history.map(h => ({
         role: h.role === 'user' ? 'user' : 'assistant',
         content: h.content,
-        time: getCurrentTime()
+        time: getCurrentTime(),
+        showFeedback: false,
+        feedbackRating: null,
+        feedbackSubmitted: false,
+        references: []
       }))
       scrollToBottom()
     } else {
       messages.value = []
     }
+
+    // 加载上下文摘要
+    loadContextSummary(sid)
   } catch (error) {
     console.error('加载会话消息失败:', error)
     messages.value = []
   }
 }
 
-// 切换会话
+// 加载上下文摘要
+const loadContextSummary = (sid) => {
+  const summaryData = getContextSummary(sid)
+  if (summaryData) {
+    contextSummary.value = summaryData.summary
+    contextTopics.value = summaryData.topics || []
+  } else {
+    contextSummary.value = ''
+    contextTopics.value = []
+  }
+}
+
+// 清除上下文摘要
+const clearContextSummary = () => {
+  clearCtx(sessionId.value)
+  contextSummary.value = ''
+  contextTopics.value = []
+}
+
+// 生成上下文摘要
+const generateSummary = async () => {
+  if (!sessionId.value) return
+
+  try {
+    const response = await fetch('/api/ai/summarize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(userId.value ? { 'X-User-Id': userId.value.toString() } : {})
+      },
+      body: JSON.stringify({ sessionId: sessionId.value })
+    })
+
+    const data = await response.json()
+    if (data.code === 200 && data.data) {
+      const summary = data.data.summary || ''
+      const topics = data.data.topics || []
+
+      saveContextSummary(sessionId.value, summary, topics)
+      contextSummary.value = summary
+      contextTopics.value = topics
+    }
+  } catch (e) {
+    console.error('生成摘要失败:', e)
+  }
+}
+
 const switchSession = async (sid) => {
+  currentSessionId.value = sid
   sessionId.value = sid
   localStorage.setItem(SESSION_KEY, sid)
   showSessionList.value = false
   await loadSessionMessages(sid)
 }
 
-// 创建新会话
 const createNewSession = async () => {
   sessionId.value = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+  currentSessionId.value = sessionId.value
   localStorage.setItem(SESSION_KEY, sessionId.value)
   messages.value = []
   showSessionList.value = false
+  // 清除上下文摘要
+  contextSummary.value = ''
+  contextTopics.value = []
 }
 
-// 删除会话
 const deleteSession = async (sid) => {
   if (!confirm('确定要删除这个会话吗？')) return
 
   try {
     const response = await fetch(`/api/ai/session/${encodeURIComponent(sid)}`, {
       method: 'DELETE',
-      headers: {
-        'X-User-Id': userId.value.toString()
-      }
+      headers: { 'X-User-Id': userId.value.toString() }
     })
     const data = await response.json()
 
     if (data.code === 200) {
-      // 从列表中移除
       sessionList.value = sessionList.value.filter(s => s.sessionId !== sid)
-      // 如果删除的是当前会话，创建新会话
-      if (sessionId.value === sid) {
+      if (currentSessionId.value === sid) {
         await createNewSession()
       }
     }
@@ -402,6 +486,7 @@ const deleteSession = async (sid) => {
   }
 }
 
+// ========== 发送消息（打字机效果） ==========
 const sendMessage = async () => {
   const content = inputMessage.value.trim()
   if (!content || loading.value) return
@@ -410,7 +495,11 @@ const sendMessage = async () => {
   messages.value.push({
     role: 'user',
     content,
-    time: getCurrentTime()
+    time: getCurrentTime(),
+    showFeedback: false,
+    feedbackRating: null,
+    feedbackSubmitted: false,
+    references: []
   })
 
   inputMessage.value = ''
@@ -422,69 +511,120 @@ const sendMessage = async () => {
     role: 'assistant',
     content: '',
     loading: true,
-    time: getCurrentTime()
+    time: getCurrentTime(),
+    showFeedback: false,
+    feedbackRating: null,
+    feedbackSubmitted: false,
+    references: [],
+    question: content
   })
 
   loading.value = true
 
   try {
-    const requestBody = { 
-      question: content,
-      sessionId: sessionId.value
-    }
-    
-    const headers = {
-      'Content-Type': 'application/json'
-    }
-    
-    // 如果用户已登录，添加用户ID
+    const headers = { 'Content-Type': 'application/json' }
     if (isLoggedIn.value && userId.value) {
       headers['X-User-Id'] = userId.value.toString()
     }
-    
+
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers,
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify({ question: content, sessionId: sessionId.value })
     })
 
     const data = await response.json()
 
-    // 更新 AI 消息
     if (data.code === 200) {
       // 保存返回的sessionId
       if (data.data?.sessionId) {
         sessionId.value = data.data.sessionId
+        currentSessionId.value = data.data.sessionId
         localStorage.setItem(SESSION_KEY, data.data.sessionId)
       }
-      messages.value[aiMessageIndex] = {
-        role: 'assistant',
-        content: data.data?.answer || '抱歉，我没有获取到有效的回复。',
-        time: getCurrentTime()
-      }
-      // 不需要刷新会话列表，保持当前会话
+
+      // 更新消息：清除loading，开始打字机效果
+      messages.value[aiMessageIndex].loading = false
+
+      // 打字机效果
+      const fullAnswer = data.data?.answer || '抱歉，我没有获取到有效的回复。'
+      const references = data.data?.references || []
+      const hasKnowledge = data.data?.hasKnowledge || false
+
+      await typewriterEffect(messages.value[aiMessageIndex], fullAnswer, references, hasKnowledge)
     } else {
-      messages.value[aiMessageIndex] = {
-        role: 'assistant',
-        content: data.message || '请求失败，请稍后重试。',
-        time: getCurrentTime()
-      }
+      messages.value[aiMessageIndex].loading = false
+      messages.value[aiMessageIndex].content = data.message || '请求失败，请稍后重试。'
     }
   } catch (error) {
     console.error('AI 请求失败:', error)
-    messages.value[aiMessageIndex] = {
-      role: 'assistant',
-      content: '抱歉，服务暂时不可用，请稍后重试。',
-      time: getCurrentTime()
-    }
+    messages.value[aiMessageIndex].loading = false
+    messages.value[aiMessageIndex].content = '抱歉，服务暂时不可用，请稍后重试。'
   }
 
   loading.value = false
   scrollToBottom()
+
+  // 检查是否需要生成上下文摘要
+  if (messages.value.length >= 3) {
+    incrementMessageCount(sessionId.value)
+    if (shouldSummarize(sessionId.value)) {
+      // 在后台生成摘要，不阻塞用户操作
+      generateSummary()
+    }
+  }
+}
+
+// ========== 打字机效果 ==========
+const typewriterEffect = async (msgObj, fullText, references, hasKnowledge) => {
+  msgObj.content = ''
+  msgObj.references = references
+  msgObj.hasKnowledge = hasKnowledge
+
+  // 分段渲染：每20-40个字符渲染一次
+  const chunkSize = () => Math.floor(Math.random() * 20) + 20
+  let displayed = ''
+
+  for (let i = 0; i < fullText.length; i += chunkSize()) {
+    const end = Math.min(i + chunkSize(), fullText.length)
+    displayed += fullText.slice(i, end)
+    msgObj.content = displayed
+
+    // 显示到引用区域
+    if (references && references.length > 0) {
+      msgObj.references = references
+    }
+
+    scrollToBottom()
+    await new Promise(r => setTimeout(r, 25))
+  }
+
+  // 确保最终内容完整
+  msgObj.content = fullText
+
+  // 显示满意度反馈（延迟2秒后出现）
+  setTimeout(() => {
+    msgObj.showFeedback = true
+  }, 2000)
+}
+
+// 点击外部关闭会话列表
+const handleOutsideClick = (e) => {
+  if (!showSessionList.value) return
+  const popup = sessionPopup.value
+  const btn = document.querySelector('.session-btn')
+  if (popup && !popup.contains(e.target) && btn && !btn.contains(e.target)) {
+    showSessionList.value = false
+  }
 }
 
 onMounted(() => {
   loadHistory()
+  document.addEventListener('click', handleOutsideClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick)
 })
 </script>
 
@@ -509,8 +649,19 @@ onMounted(() => {
   align-items: center;
 }
 
-.header-left {
-  text-align: left;
+.header-left { text-align: left; }
+
+.page-title {
+  font-size: 22px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.page-desc {
+  font-size: 13px;
+  color: var(--color-ink-muted);
 }
 
 .session-btn {
@@ -533,24 +684,32 @@ onMounted(() => {
   border-color: var(--color-ink);
 }
 
-.session-icon {
-  font-size: 14px;
-}
-
-/* 会话列表侧边栏 */
-.session-sidebar {
+/* 会话列表浮层 */
+.session-popup {
   position: absolute;
-  top: 100px;
-  right: 20px;
-  width: 320px;
-  max-height: calc(100vh - 180px);
+  top: 84px;
+  right: 0;
+  width: 300px;
+  max-height: 380px;
   background: var(--color-white);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  z-index: 200;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+/* 会话列表浮层动画 */
+.session-fade-enter-active,
+.session-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.session-fade-enter-from,
+.session-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .session-header {
@@ -579,9 +738,7 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
-.new-session-btn:hover {
-  background: var(--color-cinnabar-light);
-}
+.new-session-btn:hover { background: var(--color-cinnabar-light); }
 
 .session-list {
   flex: 1;
@@ -597,10 +754,7 @@ onMounted(() => {
   margin-bottom: 4px;
 }
 
-.session-item:hover {
-  background: var(--color-paper);
-}
-
+.session-item:hover { background: var(--color-paper); }
 .session-item.active {
   background: rgba(196, 92, 72, 0.1);
   border-left: 3px solid var(--color-cinnabar);
@@ -650,33 +804,14 @@ onMounted(() => {
   font-size: 13px;
 }
 
-/* 聊天容器 */
-.chat-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  transition: margin-right 0.3s;
-}
-
-.chat-container.with-sidebar {
-  margin-right: 340px;
-}
-
-.page-title {
-  font-size: 22px;
-  font-family: var(--font-serif);
-  font-weight: 600;
-  color: var(--color-ink);
-  margin-bottom: 6px;
-}
-
-.page-desc {
-  font-size: 13px;
+.session-limit-tip {
+  text-align: center;
+  padding: 10px 12px;
   color: var(--color-ink-muted);
+  font-size: 11px;
+  background: var(--color-paper);
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
 }
 
 /* 聊天容器 */
@@ -688,6 +823,75 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
+}
+
+/* 上下文摘要 */
+.context-summary {
+  margin: 12px 20px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(196, 92, 72, 0.08), rgba(196, 92, 72, 0.04));
+  border: 1px solid rgba(196, 92, 72, 0.2);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.context-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.context-icon {
+  font-size: 14px;
+}
+
+.context-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-cinnabar);
+}
+
+.context-clear {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.context-clear:hover {
+  background: rgba(196, 92, 72, 0.15);
+  color: var(--color-cinnabar);
+}
+
+.context-text {
+  font-size: 12px;
+  color: var(--color-ink-light);
+  line-height: 1.6;
+  margin: 0 0 8px 0;
+}
+
+.context-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topic-tag {
+  padding: 2px 8px;
+  background: rgba(196, 92, 72, 0.1);
+  color: var(--color-cinnabar);
+  border-radius: 10px;
+  font-size: 11px;
 }
 
 /* 消息列表 */
@@ -753,39 +957,35 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
-  
-  &:hover {
-    background: var(--color-ink);
-    color: var(--color-white);
-    border-color: var(--color-ink);
-  }
 }
 
-/* 消息样式 */
+.quick-question:hover {
+  background: var(--color-ink);
+  color: var(--color-white);
+  border-color: var(--color-ink);
+}
+
+/* 消息 */
 .message {
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
-  
-  &.user {
-    flex-direction: row-reverse;
-    
-    .message-content {
-      align-items: flex-end;
-    }
-    
-    .message-bubble {
-      background: linear-gradient(135deg, #c45c48, #e07b6d);
-      color: #fff;
-      border: none;
-      box-shadow: 0 4px 12px rgba(196, 92, 72, 0.25);
-    }
-    
-    .message-time {
-      text-align: right;
-    }
-  }
 }
+
+.message.user {
+  flex-direction: row-reverse;
+}
+
+.message.user .message-content { align-items: flex-end; }
+
+.message.user .message-bubble {
+  background: linear-gradient(135deg, #c45c48, #e07b6d);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(196, 92, 72, 0.25);
+}
+
+.message.user .message-time { text-align: right; }
 
 .message-avatar {
   width: 40px;
@@ -825,11 +1025,9 @@ onMounted(() => {
   border-top-left-radius: 4px;
   color: var(--color-ink);
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  
-  p {
-    margin: 0;
-  }
 }
+
+.message-bubble p { margin: 0; }
 
 .message.user .message-bubble {
   border-top-left-radius: 16px;
@@ -843,15 +1041,146 @@ onMounted(() => {
   opacity: 0.7;
 }
 
-/* AI 消息内容样式优化 */
+/* 满意度反馈 */
+.feedback-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+.feedback-label {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+.feedback-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.feedback-btn:hover {
+  border-color: var(--color-cinnabar);
+  color: var(--color-cinnabar);
+}
+
+.feedback-btn.thumbs-up.active {
+  background: #27ae60;
+  border-color: #27ae60;
+  color: #fff;
+}
+
+.feedback-btn.thumbs-down.active {
+  background: #e74c3c;
+  border-color: #e74c3c;
+  color: #fff;
+}
+
+.feedback-thanks {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  margin-top: 8px;
+  font-style: italic;
+}
+
+/* 加载动画 */
+.loading-text {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.loading-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--color-ink-muted);
+  border-radius: 50%;
+  animation: loading 1.4s infinite ease-in-out both;
+}
+
+.loading-dot:nth-child(1) { animation-delay: -0.32s; }
+.loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes loading {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* 输入区域 */
+.chat-input-area {
+  padding: 16px 20px;
+  background: var(--color-cream);
+  border-top: 1px solid var(--color-border);
+}
+
+.input-container {
+  display: flex;
+  gap: 12px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-ink);
+  resize: none;
+  font-family: inherit;
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: var(--color-ochre);
+}
+
+.chat-input::placeholder { color: var(--color-ink-muted); }
+
+.send-btn {
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-white);
+  background: var(--color-cinnabar);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.send-btn:hover:not(:disabled) { background: var(--color-cinnabar-light); }
+.send-btn:disabled {
+  background: var(--color-border);
+  cursor: not-allowed;
+}
+
+.input-hint {
+  font-size: 11px;
+  color: var(--color-ink-muted);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Markdown 样式 */
 .message-bubble :deep(.msg-p) {
   margin: 0 0 10px 0;
   line-height: 1.7;
 }
 
-.message-bubble :deep(.msg-p:last-child) {
-  margin-bottom: 0;
-}
+.message-bubble :deep(.msg-p:last-child) { margin-bottom: 0; }
 
 .message-bubble :deep(.msg-h2) {
   font-size: 18px;
@@ -955,102 +1284,130 @@ onMounted(() => {
   border-top: 1px dashed var(--color-border);
 }
 
-/* 加载动画 */
-.loading-text {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
-}
-
-.loading-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--color-ink-muted);
-  border-radius: 50%;
-  animation: loading 1.4s infinite ease-in-out both;
-  
-  &:nth-child(1) { animation-delay: -0.32s; }
-  &:nth-child(2) { animation-delay: -0.16s; }
-}
-
-@keyframes loading {
-  0%, 80%, 100% {
-    transform: scale(0);
-  }
-  40% {
-    transform: scale(1);
-  }
-}
-
-/* 输入区域 */
-.chat-input-area {
-  padding: 16px 20px;
-  background: var(--color-cream);
-  border-top: 1px solid var(--color-border);
-}
-
-.input-container {
-  display: flex;
-  gap: 12px;
-}
-
-.chat-input {
-  flex: 1;
-  padding: 12px 16px;
-  font-size: 14px;
-  line-height: 1.5;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-white);
-  color: var(--color-ink);
-  resize: none;
-  
-  &:focus {
-    outline: none;
-    border-color: var(--color-ochre);
-  }
-  
-  &::placeholder {
-    color: var(--color-ink-muted);
-  }
-}
-
-.send-btn {
-  padding: 12px 24px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-white);
-  background: var(--color-cinnabar);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
-  
-  &:hover:not(:disabled) {
-    background: var(--color-cinnabar-light);
-  }
-  
-  &:disabled {
-    background: var(--color-border);
-    cursor: not-allowed;
-  }
-}
-
-.input-hint {
-  font-size: 11px;
-  color: var(--color-ink-muted);
-  margin-top: 8px;
-  text-align: center;
-}
-
 /* 响应式 */
 @media (max-width: 768px) {
   .ai-chat-page {
-    height: calc(100vh - 100px);
+    height: calc(100vh - 56px - 56px);
+    padding-bottom: 56px;
   }
-  
+
+  .page-header {
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
+
+  .page-desc {
+    font-size: 12px;
+  }
+
+  .session-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .session-popup {
+    top: 70px;
+    right: 8px;
+    width: 260px;
+  }
+
+  .chat-container {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .welcome-message {
+    padding: 24px 16px;
+  }
+
+  .welcome-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+  }
+
+  .welcome-message h3 {
+    font-size: 16px;
+  }
+
+  .quick-questions {
+    gap: 6px;
+  }
+
+  .quick-question {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .chat-messages {
+    padding: 16px;
+  }
+
   .message-content {
-    max-width: 85%;
+    max-width: 88%;
+  }
+
+  .message-bubble {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .message-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .message-time {
+    font-size: 10px;
+  }
+
+  .feedback-area {
+    gap: 6px;
+  }
+
+  .feedback-label {
+    font-size: 11px;
+  }
+
+  .feedback-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .chat-input-area {
+    padding: 12px 16px;
+  }
+
+  .chat-input {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  .send-btn {
+    padding: 10px 18px;
+    font-size: 13px;
+  }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 375px) {
+  .ai-chat-page {
+    height: calc(100vh - 50px - 50px);
+  }
+
+  .message-content {
+    max-width: 90%;
+  }
+
+  .message-bubble {
+    padding: 10px 12px;
+    font-size: 13px;
   }
 }
 </style>

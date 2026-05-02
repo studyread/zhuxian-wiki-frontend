@@ -3,9 +3,11 @@ package com.zhuxianwiki.AI;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.zhuxianwiki.entity.AiFeedback;
 import com.zhuxianwiki.entity.Article;
 import com.zhuxianwiki.entity.ChatHistory;
 import com.zhuxianwiki.entity.KnowledgeEntry;
+import com.zhuxianwiki.mapper.AiFeedbackMapper;
 import com.zhuxianwiki.mapper.ArticleMapper;
 import com.zhuxianwiki.mapper.ChatHistoryMapper;
 import com.zhuxianwiki.mapper.KnowledgeEntryMapper;
@@ -56,6 +58,9 @@ public class AIService {
     private KnowledgeEntryMapper knowledgeEntryMapper;
 
     @Autowired
+    private AiFeedbackMapper aiFeedbackMapper;
+
+    @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
     private static final String SYSTEM_PROMPT = """
@@ -74,8 +79,16 @@ public class AIService {
         当没有相关内容时，明确告知用户并引导查看其他功能。
         """;
 
-    public String chat(String question, String sessionId, Long userId) {
+    /**
+     * 聊天接口 - 返回完整响应信息（答案 + 引用来源）
+     * 支持上下文记忆功能
+     */
+    public Map<String, Object> chat(String question, String sessionId, Long userId) {
+        Map<String, Object> result = new HashMap<>();
         try {
+            // 0. 构建带上下文的提示词（如果之前有对话历史）
+            String contextualQuestion = buildContextualPrompt(question, sessionId);
+
             // 1. 知识库优先搜索
             List<KnowledgeEntry> knowledgeEntries = searchKnowledge(question);
             List<Article> articles = searchArticles(question);
@@ -87,10 +100,14 @@ public class AIService {
             // 2. 构建上下文
             String context = buildContext(knowledgeEntries, articles);
 
-            // 3. 构建用户提示词（优化输出格式）
+            // 3. 构建用户提示词
             String userPrompt;
             if (hasContent) {
                 StringBuilder prompt = new StringBuilder();
+                // 如果有对话历史，先添加上下文摘要
+                if (!contextualQuestion.equals(question)) {
+                    prompt.append("【对话上下文】\n").append(contextualQuestion).append("\n\n");
+                }
                 prompt.append(context);
                 prompt.append("\n\n【用户问题】\n").append(question);
                 prompt.append("\n\n【回答要求】\n");
@@ -98,43 +115,87 @@ public class AIService {
                 prompt.append("2. 使用引用块（>）直接展示原文关键内容\n");
                 prompt.append("3. 如有攻略文章，提示用户可在网站查看完整攻略\n");
                 prompt.append("4. 回答要准确、完整，不要遗漏重要信息\n");
+                if (!contextualQuestion.equals(question)) {
+                    prompt.append("5. 注意参考对话上下文，保持对话连贯性\n");
+                }
                 userPrompt = prompt.toString();
             } else {
-                userPrompt = context + "\n\n用户问题：" + question + "\n请告知用户当前网站暂无相关信息，建议查看其他分类或稍后再来查询。";
+                String baseQuestion = contextualQuestion.equals(question) ? question : contextualQuestion;
+                userPrompt = context + "\n\n用户问题：" + baseQuestion + "\n请告知用户当前网站暂无相关信息，建议查看其他分类或稍后再来查询。";
             }
 
             saveChatHistory(sessionId, "user", question, userId);
             String response = callAI(userPrompt);
             saveChatHistory(sessionId, "assistant", response, userId);
 
-            return response;
+            // 4. 构建引用来源
+            List<Map<String, Object>> references = buildReferences(knowledgeEntries, articles);
+
+            result.put("answer", response);
+            result.put("references", references);
+            result.put("hasKnowledge", hasKnowledge || hasArticles);
+            return result;
         } catch (Exception e) {
             log.error("AI服务异常: {}", e.getMessage(), e);
-            return "抱歉，AI服务暂时不可用：" + e.getMessage();
+            result.put("answer", "抱歉，AI服务暂时不可用：" + e.getMessage());
+            result.put("references", Collections.emptyList());
+            result.put("hasKnowledge", false);
+            return result;
         }
     }
 
     /**
+     * 构建引用来源列表
+     */
+    private List<Map<String, Object>> buildReferences(List<KnowledgeEntry> knowledgeEntries, List<Article> articles) {
+        List<Map<String, Object>> refs = new ArrayList<>();
+
+        if (articles != null) {
+            for (Article a : articles) {
+                if (a.getId() != null) {
+                    Map<String, Object> ref = new HashMap<>();
+                    ref.put("type", "article");
+                    ref.put("id", a.getId());
+                    ref.put("title", a.getTitle());
+                    ref.put("summary", a.getSummary());
+                    refs.add(ref);
+                }
+            }
+        }
+
+        if (knowledgeEntries != null) {
+            for (KnowledgeEntry e : knowledgeEntries) {
+                if (e.getId() != null) {
+                    Map<String, Object> ref = new HashMap<>();
+                    ref.put("type", "knowledge");
+                    ref.put("id", e.getId());
+                    ref.put("title", e.getTitle());
+                    ref.put("summary", e.getSummary());
+                    refs.add(ref);
+                }
+            }
+        }
+
+        return refs;
+    }
+
+    /**
      * 搜索知识库词条 - 优化版：分词搜索
-     * 把用户问题拆成多个关键词，任一匹配即可
      */
     private List<KnowledgeEntry> searchKnowledge(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return Collections.emptyList();
         }
         try {
-            // 提取关键词：中文按长度切割，英文按空格分词
             List<String> keywords = extractKeywords(keyword);
             log.info("提取的搜索关键词: {}", keywords);
-            
+
             if (keywords.isEmpty()) {
                 return Collections.emptyList();
             }
-            
-            // 优先用分词搜索
+
             List<KnowledgeEntry> results = knowledgeEntryMapper.searchByKeywords(keywords);
-            
-            // 如果分词搜索结果太少，再用单关键词搜索作为补充
+
             if (results.size() < 3) {
                 List<KnowledgeEntry> fallback = knowledgeEntryMapper.searchByKeyword(keywords.get(0));
                 for (KnowledgeEntry entry : fallback) {
@@ -143,32 +204,27 @@ public class AIService {
                     }
                 }
             }
-            
+
             return results;
         } catch (Exception e) {
             log.error("搜索知识库失败: {}", e.getMessage(), e);
             return Collections.emptyList();
         }
     }
-    
+
     /**
      * 提取搜索关键词
-     * 中文：每2-4个字符作为一个词
-     * 英文：按空格分词
      */
     private List<String> extractKeywords(String text) {
         List<String> keywords = new ArrayList<>();
-        
-        // 移除标点符号
+
         String cleaned = text.replaceAll("[，。！？、：；\"\"''【】《》（）\\-—_.,!?():;\\[\\]{}]", " ");
-        
-        // 移除常见停用词
+
         String[] stopWords = {"的", "是", "在", "有", "和", "与", "或", "以及", "请问", "怎么", "如何", "什么", "哪个", "哪里", "为什么", "能不能", "可以", "帮我", "告诉", "一下", "吗", "呢", "吧", "啊"};
         for (String stop : stopWords) {
             cleaned = cleaned.replace(stop, " ");
         }
-        
-        // 中文分词：每2-4个连续中文字符作为一个关键词
+
         String chinesePattern = "[\\u4e00-\\u9fa5]{2,6}";
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(chinesePattern);
         java.util.regex.Matcher matcher = pattern.matcher(cleaned);
@@ -176,15 +232,13 @@ public class AIService {
             String word = matcher.group();
             if (word.length() >= 2) {
                 keywords.add(word);
-                // 同时添加前2字和前3字作为备选（如"云梦宗门" -> "云梦", "云梦宗"）
                 if (word.length() >= 3) {
                     keywords.add(word.substring(0, 2));
                     keywords.add(word.substring(0, 3));
                 }
             }
         }
-        
-        // 英文分词
+
         String[] englishWords = cleaned.split("\\s+");
         for (String word : englishWords) {
             word = word.trim();
@@ -192,31 +246,26 @@ public class AIService {
                 keywords.add(word);
             }
         }
-        
-        // 去重
+
         return keywords.stream().distinct().limit(10).collect(Collectors.toList());
     }
 
     /**
-     * 搜索攻略文章 - 优化版：多重关键词搜索
-     * 搜索时同时使用原始问题和提取的关键词，确保更全面匹配
+     * 搜索攻略文章
      */
     private List<Article> searchArticles(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return Collections.emptyList();
         }
         try {
-            // 提取关键词
             List<String> keywords = extractKeywords(keyword);
             if (keywords.isEmpty()) {
                 return Collections.emptyList();
             }
-            
-            // 使用多个关键词搜索（更全面匹配）
+
             List<Article> results = new java.util.ArrayList<>();
-            java.util.Set<Long> addedIds = new java.util.HashSet<>(); // 用于去重
-            
-            // 1. 用原始问题搜索（包含多词的完整查询，优先级最高）
+            java.util.Set<Long> addedIds = new java.util.HashSet<>();
+
             if (keyword.length() >= 2) {
                 List<Article> original = articleMapper.searchArticles(keyword);
                 if (original != null) {
@@ -227,8 +276,7 @@ public class AIService {
                     }
                 }
             }
-            
-            // 2. 用所有提取的关键词搜索（最多取前3个）
+
             int maxKeywords = Math.min(keywords.size(), 3);
             for (int i = 0; i < maxKeywords; i++) {
                 List<Article> found = articleMapper.searchArticles(keywords.get(i));
@@ -240,8 +288,7 @@ public class AIService {
                     }
                 }
             }
-            
-            // 去重并限制返回数量
+
             return results.stream().limit(5).collect(Collectors.toList());
         } catch (Exception e) {
             log.error("搜索攻略文章失败: {}", e.getMessage());
@@ -250,14 +297,12 @@ public class AIService {
     }
 
     /**
-     * 构建上下文（攻略文章 + 知识库）
-     * 攻略文章优先显示，因为是用户贡献的最新内容
+     * 构建上下文
      */
     private String buildContext(List<KnowledgeEntry> knowledgeEntries, List<Article> articles) {
         StringBuilder sb = new StringBuilder();
         sb.append("【网站内容检索结果】\n\n");
 
-        // 优先添加攻略文章内容（用户贡献的最新攻略）
         if (articles != null && !articles.isEmpty()) {
             sb.append("【攻略文章】（来自网站用户的最新攻略）\n");
             for (int i = 0; i < Math.min(articles.size(), 3); i++) {
@@ -268,9 +313,7 @@ public class AIService {
                 }
                 String content = article.getContent();
                 if (content != null && !content.isEmpty()) {
-                    // 处理Markdown内容：移除多余的空行，保留基本格式
                     content = cleanMarkdownContent(content);
-                    // 增加内容长度到1500字符
                     if (content.length() > 1500) {
                         content = content.substring(0, 1500) + "\n...(内容已截断，请访问网站查看完整攻略)";
                     }
@@ -281,7 +324,6 @@ public class AIService {
             sb.append("\n");
         }
 
-        // 其次添加知识库内容
         if (knowledgeEntries != null && !knowledgeEntries.isEmpty()) {
             sb.append("【知识库词条】\n");
             for (int i = 0; i < Math.min(knowledgeEntries.size(), 5); i++) {
@@ -292,7 +334,6 @@ public class AIService {
                 }
                 String content = entry.getContent();
                 if (content != null && !content.isEmpty()) {
-                    // 增加内容长度到800字符
                     if (content.length() > 800) {
                         content = content.substring(0, 800) + "\n...(内容已截断)";
                     }
@@ -369,21 +410,18 @@ public class AIService {
         }
     }
 
-    private static final int MAX_HISTORY_SIZE = 10; // 最多保留10条消息
+    private static final int MAX_HISTORY_SIZE = 10;
 
     private void saveChatHistory(String sessionId, String role, String content, Long userId) {
         try {
-            // 先检查当前会话的记录数量
             int currentCount = chatHistoryMapper.countBySessionId(sessionId);
-            
-            // 如果记录数已达到上限，删除最老的2条（用户消息+AI回复）
+
             if (currentCount >= MAX_HISTORY_SIZE) {
-                int deleteCount = 2; // 每轮对话包含用户消息和AI回复，删除2条
+                int deleteCount = 2;
                 chatHistoryMapper.deleteOldestBySessionId(sessionId, deleteCount);
                 log.info("聊天记录超限，已删除最老的{}条记录", deleteCount);
             }
-            
-            // 保存新记录
+
             ChatHistory history = new ChatHistory();
             history.setUserId(userId);
             history.setSessionId(sessionId);
@@ -419,38 +457,30 @@ public class AIService {
         }
     }
 
-    // 根据用户ID获取聊天记录
     public List<Map<String, String>> getChatHistoryByUserId(Long userId) {
-        // 查询所有以 "user_{userId}_" 开头的 sessionId 的记录
-        // 然后按时间排序返回最近的记录
         try {
-            // 使用 LambdaQueryWrapper 查询 - 获取最近40条记录（10轮对话）
-            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ChatHistory> wrapper = 
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ChatHistory> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
             wrapper.like(ChatHistory::getSessionId, "user_" + userId + "_")
                    .orderByDesc(ChatHistory::getCreatedAt)
-                   .last("LIMIT 40");  // 改为40条，支持10轮完整对话
-            
+                   .last("LIMIT 40");
+
             List<ChatHistory> histories = chatHistoryMapper.selectList(wrapper);
             if (histories == null || histories.isEmpty()) {
                 return Collections.emptyList();
             }
-            
-            // 返回完整对话（按 sessionId 分组，然后按时间排序）
-            // 获取该用户最近的10轮完整对话
+
             Map<String, List<ChatHistory>> sessionMap = new LinkedHashMap<>();
             for (ChatHistory h : histories) {
                 String sid = h.getSessionId();
                 sessionMap.computeIfAbsent(sid, k -> new ArrayList<>()).add(h);
             }
-            
-            // 取最新会话的完整历史（支持10轮对话）
+
             List<Map<String, String>> result = new ArrayList<>();
             String latestSession = sessionMap.keySet().iterator().next();
             List<ChatHistory> latestHistory = sessionMap.get(latestSession);
             latestHistory.sort(Comparator.comparing(ChatHistory::getCreatedAt));
-            
-            // 只取最新的20条（10轮对话：10条用户 + 10条AI）
+
             int maxMessages = 20;
             for (int i = Math.max(0, latestHistory.size() - maxMessages); i < latestHistory.size(); i++) {
                 ChatHistory h = latestHistory.get(i);
@@ -467,10 +497,6 @@ public class AIService {
         }
     }
 
-    /**
-     * 获取用户的所有会话列表
-     * 每个会话包含：sessionId、第一条用户消息（作为标题）、消息数量、最后更新时间
-     */
     public List<Map<String, Object>> getUserSessionList(Long userId) {
         try {
             List<ChatHistory> allHistories = chatHistoryMapper.selectUserSessionMessages(userId);
@@ -478,13 +504,11 @@ public class AIService {
                 return Collections.emptyList();
             }
 
-            // 按sessionId分组
             Map<String, List<ChatHistory>> sessionMap = new LinkedHashMap<>();
             for (ChatHistory h : allHistories) {
                 sessionMap.computeIfAbsent(h.getSessionId(), k -> new ArrayList<>()).add(h);
             }
 
-            // 构建会话列表
             List<Map<String, Object>> sessionList = new ArrayList<>();
             for (Map.Entry<String, List<ChatHistory>> entry : sessionMap.entrySet()) {
                 String sessionId = entry.getKey();
@@ -494,7 +518,6 @@ public class AIService {
                 Map<String, Object> session = new LinkedHashMap<>();
                 session.put("sessionId", sessionId);
 
-                // 第一条用户消息作为标题
                 String title = "新会话";
                 for (ChatHistory m : messages) {
                     if ("user".equals(m.getRole())) {
@@ -508,11 +531,9 @@ public class AIService {
                 session.put("title", title);
                 session.put("messageCount", messages.size());
 
-                // 最后更新时间
                 ChatHistory lastMsg = messages.get(messages.size() - 1);
                 session.put("lastUpdate", lastMsg.getCreatedAt().toString());
 
-                // 最后一条消息预览（如果是AI回复）
                 String preview = "";
                 for (int i = messages.size() - 1; i >= 0; i--) {
                     if ("assistant".equals(messages.get(i).getRole())) {
@@ -536,19 +557,163 @@ public class AIService {
     }
 
     /**
-     * 清理Markdown内容，避免格式问题导致AI识别乱码
+     * 提交满意度反馈
+     */
+    public void submitFeedback(Long userId, String sessionId, String question,
+                               String answer, Integer rating, String feedbackText) {
+        try {
+            AiFeedback feedback = new AiFeedback();
+            feedback.setUserId(userId);
+            feedback.setSessionId(sessionId);
+            feedback.setQuestion(question);
+            feedback.setAnswer(answer);
+            feedback.setRating(rating);
+            feedback.setFeedbackText(feedbackText);
+            feedback.setCreatedAt(java.time.LocalDateTime.now());
+            aiFeedbackMapper.insert(feedback);
+            log.info("AI反馈已保存: userId={}, rating={}", userId, rating);
+        } catch (Exception e) {
+            log.error("保存AI反馈失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 生成会话上下文摘要
+     * 将对话历史精炼为简短摘要，包含主要话题和关键信息
+     */
+    public Map<String, Object> generateContextSummary(String sessionId) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            List<ChatHistory> histories = chatHistoryMapper.selectBySessionId(sessionId);
+            if (histories == null || histories.isEmpty()) {
+                result.put("summary", "");
+                result.put("topics", Collections.emptyList());
+                return result;
+            }
+
+            // 构建摘要提示词
+            StringBuilder promptBuilder = new StringBuilder();
+            promptBuilder.append("请将以下对话历史精炼为一个简短的摘要（不超过150字），包含：\n");
+            promptBuilder.append("1. 用户的主要问题或需求\n");
+            promptBuilder.append("2. AI回答的关键内容\n");
+            promptBuilder.append("3. 提取3-5个关键词（用顿号分隔）\n\n");
+
+            // 只取最近10条消息进行摘要
+            int count = Math.min(histories.size(), 10);
+            for (int i = histories.size() - count; i < histories.size(); i++) {
+                ChatHistory h = histories.get(i);
+                promptBuilder.append(h.getRole()).append(": ").append(h.getContent()).append("\n");
+            }
+
+            String summaryPrompt = promptBuilder.toString();
+            log.info("生成摘要，prompt长度: {}", summaryPrompt.length());
+
+            // 调用AI生成摘要
+            String summary = callAI(summaryPrompt);
+
+            // 提取关键词（简单处理：取摘要中的名词性词汇）
+            List<String> topics = extractTopics(summary);
+
+            result.put("summary", summary);
+            result.put("topics", topics);
+            result.put("messageCount", histories.size());
+
+            log.info("摘要生成成功: {}", summary.substring(0, Math.min(50, summary.length())));
+            return result;
+
+        } catch (Exception e) {
+            log.error("生成摘要失败: {}", e.getMessage(), e);
+            result.put("summary", "");
+            result.put("topics", Collections.emptyList());
+            return result;
+        }
+    }
+
+    /**
+     * 提取关键词
+     */
+    private List<String> extractTopics(String text) {
+        List<String> topics = new ArrayList<>();
+
+        // 简单关键词提取：查找游戏相关词汇
+        String[] keywords = {"青云门", "天音寺", "焚香谷", "鬼王宗", "合欢派",
+            "新手", "升级", "加点", "副本", "装备", "宠物", "坐骑",
+            "PVP", "PVE", "攻略", "门派", "职业", "技能", "法宝"};
+
+        for (String keyword : keywords) {
+            if (text.contains(keyword) && topics.size() < 5) {
+                topics.add(keyword);
+            }
+        }
+
+        return topics;
+    }
+
+    /**
+     * 获取带有上下文摘要的提示词
+     * 用于在后续对话中提供上下文
+     * 注意：不再调用AI生成摘要，直接使用对话历史构建上下文
+     */
+    public String buildContextualPrompt(String question, String sessionId) {
+        try {
+            List<ChatHistory> histories = chatHistoryMapper.selectBySessionId(sessionId);
+            if (histories == null || histories.isEmpty()) {
+                return question;
+            }
+
+            // 只要有历史记录（至少1条），就构建上下文
+            // 注意：当前问题还未保存，所以历史记录只包含之前的对话
+
+            StringBuilder contextBuilder = new StringBuilder();
+
+            // 取最近几轮对话作为上下文（最多6条）
+            int recentCount = Math.min(histories.size(), 6);
+            int startIndex = histories.size() - recentCount;
+
+            for (int i = startIndex; i < histories.size(); i++) {
+                ChatHistory h = histories.get(i);
+                String role = "user".equals(h.getRole()) ? "用户" : "助手";
+                String content = h.getContent();
+
+                // 截断过长的内容
+                if (content != null && content.length() > 300) {
+                    content = content.substring(0, 300) + "...";
+                }
+
+                if (content != null) {
+                    contextBuilder.append(role).append("：").append(content).append("\n");
+                }
+            }
+
+            String context = contextBuilder.toString();
+            if (context.isEmpty()) {
+                return question;
+            }
+
+            // 构建带有上下文的提示
+            StringBuilder prompt = new StringBuilder();
+            prompt.append("【之前的对话内容】\n").append(context).append("\n");
+            prompt.append("【当前问题】\n").append(question);
+
+            return prompt.toString();
+
+        } catch (Exception e) {
+            log.error("构建上下文提示词失败: {}", e.getMessage());
+            return question;
+        }
+    }
+
+    /**
+     * 清理Markdown内容
      */
     private String cleanMarkdownContent(String content) {
         if (content == null || content.isEmpty()) {
             return content;
         }
-        // 移除多余的连续空行（保留最多一个空行）
         content = content.replaceAll("\\n{3,}", "\n\n");
-        // 移除行尾多余空格
         content = content.replaceAll("[ \t]+\n", "\n");
-        // 移除行首多余空格
         content = content.replaceAll("\n[ \t]+", "\n");
-        // 确保使用标准换行符
         content = content.replace("\r\n", "\n").replace("\r", "\n");
         return content;
     }

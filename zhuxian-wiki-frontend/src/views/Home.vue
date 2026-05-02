@@ -83,6 +83,25 @@
       </main>
     </div>
 
+    <!-- 移动端底部导航 -->
+    <nav class="mobile-bottom-nav">
+      <router-link to="/" class="bottom-nav-item">
+        <span class="bottom-nav-icon">🏠</span>
+        <span class="bottom-nav-label">首页</span>
+      </router-link>
+      <router-link to="/search" class="bottom-nav-item">
+        <span class="bottom-nav-icon">🔍</span>
+        <span class="bottom-nav-label">搜索</span>
+      </router-link>
+      <router-link to="/ai" class="bottom-nav-item">
+        <span class="bottom-nav-icon">🤖</span>
+        <span class="bottom-nav-label">AI助手</span>
+      </router-link>
+      <router-link to="/user" class="bottom-nav-item">
+        <span class="bottom-nav-icon">👤</span>
+        <span class="bottom-nav-label">我的</span>
+      </router-link>
+    </nav>
   </div>
 </template>
 
@@ -148,16 +167,35 @@ const getCoverImage = (article) => {
 
 onMounted(async () => {
   try {
-    const [hotRes, latestRes, statsRes] = await Promise.all([
-      articleApi.getHot(),
-      articleApi.getLatest(),
-      statsApi.getStatistics()
-    ])
-    hotArticles.value = hotRes.data || []
-    latestArticles.value = latestRes.data || []
+    // 分别请求，便于定位问题
+    let hotRes, latestRes, statsRes
+
+    try {
+      hotRes = await articleApi.getHot()
+      console.log('热门文章:', hotRes)
+    } catch (e) {
+      console.error('获取热门文章失败:', e)
+    }
+
+    try {
+      latestRes = await articleApi.getLatest()
+      console.log('最新文章:', latestRes)
+    } catch (e) {
+      console.error('获取最新文章失败:', e)
+    }
+
+    try {
+      statsRes = await statsApi.getStatistics()
+      console.log('统计数据:', statsRes)
+    } catch (e) {
+      console.error('获取统计数据失败:', e)
+    }
+
+    hotArticles.value = hotRes?.data || []
+    latestArticles.value = latestRes?.data || []
 
     // 启动站点统计数字动画
-    if (statsRes.code === 200) {
+    if (statsRes?.code === 200) {
       const stats = statsRes.data || {}
       setTimeout(() => {
         animateNumber('userCount', stats.userCount || 0)
@@ -175,6 +213,7 @@ onMounted(async () => {
 <style scoped>
 .home-page {
   padding: 0;
+  padding-bottom: 70px; /* 为底部导航留出空间 */
 }
 
 /* 主内容区域 - 固定宽度居中 */
@@ -424,24 +463,178 @@ onMounted(async () => {
   margin-left: 12px;
 }
 
-/* 响应式 */
+/* ========== 移动端底部导航栏 ========== */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--color-white);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  z-index: 100;
+  padding: 0 8px;
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: var(--color-ink-muted);
+  gap: 2px;
+  padding: 6px 0;
+  transition: color 0.2s;
+}
+
+.bottom-nav-item.router-link-active {
+  color: var(--color-cinnabar);
+}
+
+.bottom-nav-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bottom-nav-label {
+  font-size: 10px;
+}
+
+/* ========== 响应式 ========== */
 @media (max-width: 768px) {
   .main-wrapper {
     padding: 0 12px;
   }
-  
+
+  /* Hero 区域优化 */
+  .hero-section {
+    padding: 24px 0;
+    margin-bottom: 16px;
+  }
+
+  .hero-title {
+    font-size: 22px;
+  }
+
+  .hero-desc {
+    font-size: 13px;
+  }
+
+  /* 统计栏移动端优化 */
   .stats-bar {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    gap: 10px;
+    padding: 12px;
   }
-  
+
+  .stat-item {
+    padding: 8px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  /* 文章网格移动端单列 */
   .article-grid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
-  
+
+  .article-card {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .card-cover {
+    width: 100px;
+    min-width: 100px;
+    aspect-ratio: 1;
+  }
+
+  .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .card-title {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+  }
+
+  .card-summary {
+    display: none;
+  }
+
+  /* 最新攻略列表优化 */
+  .article-item {
+    padding: 12px 10px;
+  }
+
+  .item-title {
+    font-size: 14px;
+  }
+
   .item-summary {
     display: none;
+  }
+
+  .item-date {
+    font-size: 10px;
+  }
+
+  /* 显示底部导航 */
+  .mobile-bottom-nav {
+    display: flex;
+  }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 375px) {
+  .hero-section {
+    padding: 20px 0;
+  }
+
+  .hero-title {
+    font-size: 20px;
+  }
+
+  .stats-bar {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .stat-value {
+    font-size: 16px;
+  }
+
+  .card-cover {
+    width: 80px;
+    min-width: 80px;
+  }
+
+  .mobile-bottom-nav {
+    height: 50px;
+  }
+
+  .bottom-nav-icon {
+    font-size: 18px;
+  }
+
+  .bottom-nav-label {
+    font-size: 9px;
   }
 }
 </style>

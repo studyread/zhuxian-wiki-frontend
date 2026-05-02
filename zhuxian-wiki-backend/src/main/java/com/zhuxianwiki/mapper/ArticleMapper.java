@@ -2,6 +2,7 @@ package com.zhuxianwiki.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.zhuxianwiki.entity.Article;
+import com.zhuxianwiki.entity.ArticleSimpleVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.util.List;
@@ -10,9 +11,9 @@ import java.util.Map;
 @Mapper
 public interface ArticleMapper extends BaseMapper<Article> {
     
-    List<Article> selectHotArticles(@Param("limit") int limit);
+    List<ArticleSimpleVO> selectHotArticles(@Param("limit") int limit);
     
-    List<Article> selectLatestArticles(@Param("limit") int limit);
+    List<ArticleSimpleVO> selectLatestArticles(@Param("limit") int limit);
     
     List<Article> searchArticles(@Param("keyword") String keyword);
     

@@ -16,7 +16,7 @@ import java.util.Map;
 public class StatisticsController {
     
     @Autowired
-    private ArticleMapper articleMapper;
+    private ArticleMapper  articleMapper;
     
     @Autowired
     private KnowledgeEntryMapper knowledgeEntryMapper;

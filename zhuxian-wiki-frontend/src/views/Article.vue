@@ -4,11 +4,11 @@
     <div class="breadcrumb">
       <router-link to="/">首页</router-link>
       <span class="separator">/</span>
-      <router-link v-if="article.categoryId" :to="`/category/${article.categoryId}`">
+      <router-link v-if="article?.categoryId" :to="`/category/${article.categoryId}`">
         {{ article.categoryName || '攻略' }}
       </router-link>
       <span class="separator">/</span>
-      <span class="current">{{ article.title }}</span>
+      <span class="current">{{ article?.title }}</span>
     </div>
 
     <!-- 文章内容 -->
@@ -146,16 +146,123 @@ const formatDate = (dateStr) => {
 
 const renderedContent = computed(() => {
   if (!article.value?.content) return ''
-  // 简单的 Markdown 渲染
-  return article.value.content
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
-    .replace(/^/, '<p>')
-    .replace(/$/, '</p>')
+  let content = article.value.content
+
+  // HTML转义（防XSS）
+  const escapeHtml = (str) => str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // 处理代码块（先提取保护，最后还原）
+  const codeBlocks = []
+  content = content.replace(/```([\w]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = codeBlocks.length
+    codeBlocks.push(`<pre class="article-code-block"><code>${escapeHtml(code.trim())}</code></pre>`)
+    return `\x00CODE${idx}\x00`
+  })
+
+  // 行内代码
+  const inlineCodes = []
+  content = content.replace(/`([^`\n]+)`/g, (_, code) => {
+    const idx = inlineCodes.length
+    inlineCodes.push(`<code class="article-inline-code">${escapeHtml(code)}</code>`)
+    return `\x00INLINE${idx}\x00`
+  })
+
+  // 按行处理
+  const lines = content.split('\n')
+  const output = []
+  let inList = false
+  let listItems = []
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      output.push(`<ul class="article-ul">${listItems.join('')}</ul>`)
+      listItems = []
+      inList = false
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+
+    // 代码块占位符直接输出
+    if (line.match(/^\x00CODE\d+\x00$/)) {
+      flushList()
+      const idx = parseInt(line.replace(/\x00CODE(\d+)\x00/, '$1'))
+      output.push(codeBlocks[idx])
+      continue
+    }
+
+    // 标题
+    const h4 = line.match(/^####\s+(.+)$/)
+    const h3 = line.match(/^###\s+(.+)$/)
+    const h2 = line.match(/^##\s+(.+)$/)
+    const h1 = line.match(/^#\s+(.+)$/)
+    if (h4) { flushList(); output.push(`<h4 class="article-h4">${processInline(h4[1], inlineCodes)}</h4>`); continue }
+    if (h3) { flushList(); output.push(`<h3 class="article-h3">${processInline(h3[1], inlineCodes)}</h3>`); continue }
+    if (h2) { flushList(); output.push(`<h2 class="article-h2">${processInline(h2[1], inlineCodes)}</h2>`); continue }
+    if (h1) { flushList(); output.push(`<h1 class="article-h1">${processInline(h1[1], inlineCodes)}</h1>`); continue }
+
+    // 分割线
+    if (line.match(/^[-*_]{3,}$/)) { flushList(); output.push('<hr class="article-hr">'); continue }
+
+    // 引用块
+    const bq = line.match(/^>\s*(.*)$/)
+    if (bq) { flushList(); output.push(`<blockquote class="article-blockquote">${processInline(bq[1], inlineCodes)}</blockquote>`); continue }
+
+    // 有序列表
+    const olMatch = line.match(/^\d+\.\s+(.+)$/)
+    if (olMatch) {
+      if (!inList) { inList = true; listItems = [] }
+      listItems.push(`<li>${processInline(olMatch[1], inlineCodes)}</li>`)
+      continue
+    }
+
+    // 无序列表
+    const ulMatch = line.match(/^[-*+]\s+(.+)$/)
+    if (ulMatch) {
+      if (!inList) { inList = true; listItems = [] }
+      listItems.push(`<li>${processInline(ulMatch[1], inlineCodes)}</li>`)
+      continue
+    }
+
+    // 空行：结束列表或段落
+    if (line.trim() === '') {
+      flushList()
+      continue
+    }
+
+    // 普通段落
+    flushList()
+    output.push(`<p class="article-p">${processInline(line, inlineCodes)}</p>`)
+  }
+  flushList()
+
+  // 还原内联代码占位符
+  let result = output.join('\n')
+  inlineCodes.forEach((code, idx) => {
+    result = result.replace(`\x00INLINE${idx}\x00`, code)
+  })
+
+  return result
 })
+
+// 处理行内Markdown（粗体、斜体、内联代码占位符）
+const processInline = (text, inlineCodes) => {
+  // 还原内联代码占位符
+  text = text.replace(/\x00INLINE(\d+)\x00/g, (_, idx) => inlineCodes[parseInt(idx)] || '')
+  // 粗斜体
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+  // 粗体
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  // 斜体
+  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  // 链接
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+  return text
+}
 
 const loadArticle = async (id) => {
   loading.value = true
@@ -470,6 +577,128 @@ watch(() => route.params.id, (newId) => {
   font-size: var(--text-sm);
 }
 
+/* Markdown 渲染样式 */
+.article-body :deep(.article-p) {
+  margin: 0 0 14px 0;
+  line-height: 1.9;
+  color: var(--color-ink);
+}
+
+.article-body :deep(.article-h1) {
+  font-size: 24px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 28px 0 14px 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--color-cinnabar);
+}
+
+.article-body :deep(.article-h2) {
+  font-size: 20px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--color-cinnabar);
+  margin: 24px 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(196, 92, 72, 0.25);
+}
+
+.article-body :deep(.article-h3) {
+  font-size: 17px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 18px 0 10px 0;
+}
+
+.article-body :deep(.article-h4) {
+  font-size: 15px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--color-ink-light);
+  margin: 14px 0 8px 0;
+}
+
+.article-body :deep(.article-blockquote) {
+  margin: 14px 0;
+  padding: 12px 16px;
+  background: rgba(196, 92, 72, 0.05);
+  border-left: 4px solid var(--color-cinnabar);
+  border-radius: 0 8px 8px 0;
+  color: var(--color-ink-light);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.article-body :deep(.article-ul) {
+  margin: 10px 0 14px 0;
+  padding-left: 8px;
+  list-style: none;
+}
+
+.article-body :deep(.article-ul li) {
+  position: relative;
+  padding: 4px 0 4px 22px;
+  line-height: 1.7;
+  color: var(--color-ink);
+}
+
+.article-body :deep(.article-ul li)::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 12px;
+  width: 6px;
+  height: 6px;
+  background: var(--color-cinnabar);
+  border-radius: 50%;
+}
+
+.article-body :deep(.article-hr) {
+  margin: 20px 0;
+  border: none;
+  border-top: 1px dashed var(--color-border);
+}
+
+.article-body :deep(.article-code-block) {
+  margin: 14px 0;
+  padding: 16px;
+  background: #1e1e1e;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.article-body :deep(.article-code-block code) {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+  color: #d4d4d4;
+  background: transparent;
+  border: none;
+  padding: 0;
+  line-height: 1.6;
+}
+
+.article-body :deep(.article-inline-code) {
+  padding: 2px 6px;
+  background: rgba(196, 92, 72, 0.08);
+  color: var(--color-cinnabar);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+  border: 1px solid rgba(196, 92, 72, 0.2);
+}
+
+.article-body :deep(a) {
+  color: var(--color-cinnabar);
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.article-body :deep(a:hover) {
+  color: var(--color-cinnabar-light);
+}
+
 /* 文章底部 */
 .article-footer {
   margin-top: 32px;
@@ -666,20 +895,121 @@ watch(() => route.params.id, (newId) => {
 
 /* 响应式 */
 @media (max-width: 768px) {
+  .article-detail-page {
+    padding-bottom: 70px;
+  }
+
   .article-container {
-    padding: 20px;
+    padding: 16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 
   .article-title {
-    font-size: 22px;
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+
+  .article-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .meta-left {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .article-summary {
+    padding: 12px 16px;
+  }
+
+  .article-body {
+    padding: 16px 0;
+    font-size: 14px;
+  }
+
+  .article-body :deep(.article-h2) {
+    font-size: 17px;
+  }
+
+  .article-body :deep(.article-h3) {
+    font-size: 15px;
+  }
+
+  .article-body :deep(.article-code-block) {
+    margin: 12px -16px;
+    border-radius: 0;
+    padding: 12px 16px;
+    font-size: 12px;
+  }
+
+  .article-body :deep(.article-blockquote) {
+    margin: 12px -16px;
+    border-radius: 0;
+    padding: 10px 16px;
+  }
+
+  .action-bar {
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    flex: 1;
+    min-width: 100px;
+    padding: 12px 16px;
+    justify-content: center;
   }
 
   .article-nav {
     grid-template-columns: 1fr;
   }
 
+  .nav-link {
+    padding: 12px;
+  }
+
   .related-list {
     grid-template-columns: 1fr;
+  }
+
+  .related-item {
+    padding: 12px;
+  }
+
+  .related-meta {
+    font-size: 10px;
+  }
+
+  .breadcrumb .current {
+    max-width: 120px;
+  }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 375px) {
+  .article-container {
+    padding: 12px;
+  }
+
+  .article-title {
+    font-size: 18px;
+  }
+
+  .meta-left {
+    gap: 8px;
+  }
+
+  .meta-item {
+    font-size: 11px;
+  }
+
+  .action-btn {
+    min-width: 80px;
+    padding: 10px 12px;
+    font-size: 12px;
   }
 }
 </style>

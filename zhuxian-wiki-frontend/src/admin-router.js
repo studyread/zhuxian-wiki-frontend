@@ -31,6 +31,11 @@ const routes = [
         component: () => import('./views/admin/AdminDashboard.vue')
       },
       {
+        path: 'article',
+        name: 'AdminArticle',
+        component: () => import('./views/admin/ArticleManage.vue')
+      },
+      {
         path: 'knowledge',
         name: 'AdminKnowledge',
         component: () => import('./views/admin/KnowledgeManage.vue')

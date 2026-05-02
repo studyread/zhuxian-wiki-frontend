@@ -654,4 +654,96 @@ onMounted(() => {
 .action-arrow {
   color: #ccc;
 }
+
+/* 移动端响应式 */
+@media (max-width: 768px) {
+  .user-center {
+    padding-bottom: 70px;
+  }
+
+  .auth-container {
+    padding: 24px 20px;
+  }
+
+  .auth-tabs {
+    margin-bottom: 24px;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 15px;
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .input-wrapper {
+    height: 50px;
+  }
+
+  .form-input {
+    font-size: 15px;
+  }
+
+  .submit-btn {
+    height: 48px;
+    font-size: 15px;
+  }
+
+  .user-profile {
+    padding: 20px 16px;
+    margin: 16px;
+    border-radius: 12px;
+  }
+
+  .user-info {
+    gap: 16px;
+  }
+
+  .avatar {
+    width: 64px;
+    height: 64px;
+    font-size: 24px;
+  }
+
+  .user-details {
+    flex: 1;
+  }
+
+  .user-name {
+    font-size: 18px;
+  }
+
+  .user-bio {
+    font-size: 12px;
+  }
+
+  .user-stats {
+    margin-top: 12px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .profile-actions {
+    padding: 12px 16px;
+  }
+
+  .action-card {
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+
+  .action-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .action-text {
+    font-size: 13px;
+  }
+}
 </style>

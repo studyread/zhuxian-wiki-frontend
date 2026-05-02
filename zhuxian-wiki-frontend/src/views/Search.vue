@@ -472,14 +472,98 @@ watch(() => route.query.keyword, (newKeyword) => {
 
 /* 响应式 */
 @media (max-width: 768px) {
+  .search-page {
+    padding-bottom: 70px;
+  }
+
+  .search-bar {
+    padding: 16px;
+  }
+
+  .search-input-wrapper {
+    height: 44px;
+  }
+
+  .search-input {
+    font-size: 15px;
+    padding: 0 16px;
+  }
+
+  .search-btn {
+    width: 50px;
+  }
+
+  .search-header {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+
+  .results-container {
+    padding: 12px;
+  }
+
   .result-item {
     flex-direction: column;
     gap: 12px;
+    padding: 14px;
+  }
+
+  .result-cover {
+    width: 100%;
+    aspect-ratio: 16/9;
+  }
+
+  .result-content {
+    flex: 1;
+  }
+
+  .result-title {
+    font-size: 15px;
+  }
+
+  .result-summary {
+    font-size: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
   }
 
   .result-meta {
-    flex-direction: row;
-    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .no-results {
+    padding: 60px 20px;
+  }
+
+  .no-results-icon {
+    font-size: 48px;
+  }
+
+  .no-results h3 {
+    font-size: 16px;
+  }
+
+  .no-results p {
+    font-size: 13px;
+  }
+
+  .suggestion-tags {
+    padding: 0 16px;
+  }
+
+  .suggestion-tags h4 {
+    font-size: 13px;
+  }
+
+  .tag-list {
+    gap: 8px;
+  }
+
+  .suggestion-tag {
+    padding: 6px 12px;
+    font-size: 12px;
   }
 }
 </style>

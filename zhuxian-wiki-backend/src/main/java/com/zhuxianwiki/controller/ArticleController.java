@@ -19,12 +19,23 @@ public class ArticleController {
     
     @GetMapping
     public Map<String, Object> getArticles(
-            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "latest") String sort) {
         
-        IPage<Article> pageResult = articleService.getArticlePage(categoryId, page, size, sort);
+        // 处理中文分类名，转换为数字ID
+        Long realCategoryId = null;
+        if (categoryId != null && !categoryId.isEmpty()) {
+            try {
+                realCategoryId = Long.parseLong(categoryId);
+            } catch (NumberFormatException e) {
+                // 不是数字，按名称查询分类ID
+                realCategoryId = articleService.getCategoryIdByName(categoryId);
+            }
+        }
+        
+        IPage<Article> pageResult = articleService.getArticlePage(realCategoryId, page, size, sort);
         
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);

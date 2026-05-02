@@ -2,15 +2,23 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zhuxianwiki.mapper.ArticleMapper">
 
-    <select id="selectHotArticles" resultType="com.zhuxianwiki.entity.Article">
-        SELECT * FROM article 
+    <select id="selectHotArticles" resultType="com.zhuxianwiki.entity.ArticleSimpleVO">
+        SELECT id, title, 
+               CASE WHEN LENGTH(summary) > 100 THEN CONCAT(LEFT(summary, 100), '...') ELSE summary END as summary,
+               category_id, 
+               view_count, like_count, created_at
+        FROM article 
         WHERE status = 1 
         ORDER BY view_count DESC, like_count DESC 
         LIMIT #{limit}
     </select>
 
-    <select id="selectLatestArticles" resultType="com.zhuxianwiki.entity.Article">
-        SELECT * FROM article 
+    <select id="selectLatestArticles" resultType="com.zhuxianwiki.entity.ArticleSimpleVO">
+        SELECT id, title, 
+               CASE WHEN LENGTH(summary) > 100 THEN CONCAT(LEFT(summary, 100), '...') ELSE summary END as summary,
+               category_id, 
+               view_count, like_count, created_at
+        FROM article 
         WHERE status = 1 
         ORDER BY created_at DESC 
         LIMIT #{limit}

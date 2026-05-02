@@ -555,13 +555,83 @@ watch(sortBy, () => {
 
 /* 响应式 */
 @media (max-width: 768px) {
+  .category-page {
+    padding-bottom: 70px;
+  }
+
   .page-header {
     flex-direction: column;
     text-align: center;
+    padding: 16px;
+    gap: 8px;
+  }
+
+  .category-title {
+    font-size: 20px;
+  }
+
+  .category-desc {
+    font-size: 12px;
+  }
+
+  .filter-bar {
+    padding: 12px;
+    overflow-x: auto;
+  }
+
+  .filter-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 
   .article-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .article-card {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .card-cover {
+    width: 90px;
+    min-width: 90px;
+    aspect-ratio: 1;
+  }
+
+  .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+  }
+
+  .card-summary {
+    display: none;
+  }
+
+  .pagination {
+    padding: 16px;
+  }
+
+  .page-info {
+    font-size: 12px;
+  }
+
+  .pagination-btn {
+    padding: 6px 12px;
+    font-size: 12px;
   }
 }
 </style>

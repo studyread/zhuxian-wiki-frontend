@@ -15,9 +15,7 @@ public class KnowledgeLogService extends ServiceImpl<KnowledgeLogMapper, Knowled
     
     public IPage<KnowledgeLog> getRecentLogs(int pageNum, int pageSize) {
         Page<KnowledgeLog> page = new Page<>(pageNum, pageSize);
-        LambdaQueryWrapper<KnowledgeLog> wrapper = new LambdaQueryWrapper<>();
-        wrapper.orderByDesc(KnowledgeLog::getCreatedAt);
-        return page(page, wrapper);
+        return page(page);
     }
     
     public Map<String, Object> getStats() {

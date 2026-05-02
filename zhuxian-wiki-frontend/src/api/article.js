@@ -84,7 +84,8 @@ export const userApi = {
 export const aiApi = {
   chat: (data) => request.post('/ai/chat', data),
   getHistory: (sessionId) => request.get(`/ai/history/${sessionId}`),
-  clearHistory: (sessionId) => request.delete(`/ai/history/${sessionId}`)
+  clearHistory: (sessionId) => request.delete(`/ai/history/${sessionId}`),
+  submitFeedback: (data) => request.post('/ai/feedback', data)
 }
 
 export const statsApi = {

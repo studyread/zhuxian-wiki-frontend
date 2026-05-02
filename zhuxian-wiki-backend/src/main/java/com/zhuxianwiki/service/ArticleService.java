@@ -4,13 +4,17 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhuxianwiki.entity.Article;
+import com.zhuxianwiki.entity.ArticleSimpleVO;
+import com.zhuxianwiki.entity.Category;
 import com.zhuxianwiki.entity.UserArticleLike;
 import com.zhuxianwiki.mapper.ArticleMapper;
+import com.zhuxianwiki.mapper.CategoryMapper;
 import com.zhuxianwiki.mapper.UserArticleLikeMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +35,9 @@ public class ArticleService {
     
     @Autowired
     private UserArticleLikeMapper userArticleLikeMapper;
+    
+    @Autowired
+    private CategoryMapper categoryMapper;
     
     private static final String HOT_ARTICLES_KEY = "article:hot";
     private static final String LATEST_ARTICLES_KEY = "article:latest";
@@ -61,9 +68,9 @@ public class ArticleService {
     }
     
     @SuppressWarnings("unchecked")
-    public List<Article> getHotArticles() {
+    public List<ArticleSimpleVO> getHotArticles() {
         try {
-            List<Article> cached = (List<Article>) redisTemplate.opsForValue().get(HOT_ARTICLES_KEY);
+            List<ArticleSimpleVO> cached = (List<ArticleSimpleVO>) redisTemplate.opsForValue().get(HOT_ARTICLES_KEY);
             if (cached != null && !cached.isEmpty()) {
                 return cached;
             }
@@ -71,7 +78,7 @@ public class ArticleService {
             log.warn("Redis unavailable, fallback to DB for hot articles");
         }
         
-        List<Article> articles = articleMapper.selectHotArticles(10);
+        List<ArticleSimpleVO> articles = articleMapper.selectHotArticles(10);
         try {
             if (articles != null && !articles.isEmpty()) {
                 redisTemplate.opsForValue().set(HOT_ARTICLES_KEY, articles, 30, TimeUnit.MINUTES);
@@ -83,9 +90,9 @@ public class ArticleService {
     }
     
     @SuppressWarnings("unchecked")
-    public List<Article> getLatestArticles() {
+    public List<ArticleSimpleVO> getLatestArticles() {
         try {
-            List<Article> cached = (List<Article>) redisTemplate.opsForValue().get(LATEST_ARTICLES_KEY);
+            List<ArticleSimpleVO> cached = (List<ArticleSimpleVO>) redisTemplate.opsForValue().get(LATEST_ARTICLES_KEY);
             if (cached != null && !cached.isEmpty()) {
                 return cached;
             }
@@ -93,10 +100,10 @@ public class ArticleService {
             log.warn("Redis unavailable, fallback to DB for latest articles");
         }
         
-        List<Article> articles = articleMapper.selectLatestArticles(10);
+        List<ArticleSimpleVO> articles = articleMapper.selectLatestArticles(10);
         try {
             if (articles != null && !articles.isEmpty()) {
-                redisTemplate.opsForValue().set(LATEST_ARTICLES_KEY, articles, 10, TimeUnit.MINUTES);
+                redisTemplate.opsForValue().set(LATEST_ARTICLES_KEY, articles, 30, TimeUnit.MINUTES);
             }
         } catch (Exception e) {
             log.warn("Redis write failed for latest articles");
@@ -217,5 +224,103 @@ public class ArticleService {
     // 检查用户是否已点赞某文章
     public boolean hasUserLikedArticle(Long articleId, Long userId) {
         return userArticleLikeMapper.selectCountByUserAndArticle(userId, articleId) > 0;
+    }
+
+    // 根据分类名称获取分类ID
+    public Long getCategoryIdByName(String name) {
+        if (name == null || name.isEmpty()) {
+            return null;
+        }
+        // 从所有分类中查找匹配的名称
+        List<Category> categories = categoryMapper.selectList(null);
+        if (categories != null) {
+            for (Category cat : categories) {
+                if (name.equals(cat.getName())) {
+                    return cat.getId();
+                }
+            }
+        }
+        return null;
+    }
+
+    // ========== 管理员专用方法 ==========
+
+    /**
+     * 管理员获取文章列表（支持搜索、筛选、分页）
+     */
+    public IPage<Article> getAdminArticlePage(int page, int size, String keyword, Long categoryId, Integer status, String sort) {
+        Page<Article> pageParam = new Page<>(page, size);
+        LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<>();
+
+        // 关键词搜索（标题）
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            wrapper.like(Article::getTitle, keyword.trim());
+        }
+
+        // 分类筛选
+        if (categoryId != null) {
+            wrapper.eq(Article::getCategoryId, categoryId);
+        }
+
+        // 状态筛选
+        if (status != null) {
+            wrapper.eq(Article::getStatus, status);
+        }
+
+        // 排序
+        if ("hot".equals(sort)) {
+            wrapper.orderByDesc(Article::getViewCount, Article::getCreatedAt);
+        } else if ("like".equals(sort)) {
+            wrapper.orderByDesc(Article::getLikeCount, Article::getCreatedAt);
+        } else if ("top".equals(sort)) {
+            wrapper.orderByDesc(Article::getIsTop).orderByDesc(Article::getCreatedAt);
+        } else {
+            wrapper.orderByDesc(Article::getCreatedAt);
+        }
+
+        return articleMapper.selectPage(pageParam, wrapper);
+    }
+
+    /**
+     * 管理员获取文章详情（不增加浏览量）
+     */
+    public Article getArticleByIdAdmin(Long id) {
+        return articleMapper.selectById(id);
+    }
+
+    /**
+     * 管理员删除文章（无需验证作者）
+     */
+    public boolean deleteArticleAdmin(Long id) {
+        if (id == null) {
+            return false;
+        }
+        return articleMapper.deleteById(id) > 0;
+    }
+
+    /**
+     * 置顶文章
+     */
+    public boolean toggleTopArticle(Long id) {
+        Article article = articleMapper.selectById(id);
+        if (article == null) {
+            return false;
+        }
+        article.setIsTop(1);
+        article.setUpdatedAt(LocalDateTime.now());
+        return articleMapper.updateById(article) > 0;
+    }
+
+    /**
+     * 取消置顶
+     */
+    public boolean untoggleTopArticle(Long id) {
+        Article article = articleMapper.selectById(id);
+        if (article == null) {
+            return false;
+        }
+        article.setIsTop(0);
+        article.setUpdatedAt(LocalDateTime.now());
+        return articleMapper.updateById(article) > 0;
     }
 }

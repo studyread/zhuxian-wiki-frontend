@@ -36,8 +36,11 @@ public class Article {
     
     @TableField("comment_count")
     private Integer commentCount;
-    
+
     private Integer status;
+
+    @TableField("is_top")
+    private Integer isTop;
     
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

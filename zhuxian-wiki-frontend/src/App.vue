@@ -56,4 +56,23 @@ import WikiFooter from './components/layout/WikiFooter.vue'
     display: none;
   }
 }
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .wiki-container {
+    padding: 0;
+    gap: 0;
+  }
+
+  .wiki-main-content {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    min-height: auto;
+  }
+
+  WikiFooter {
+    display: none;
+  }
+}
 </style>

@@ -29,4 +29,11 @@
 .ICP {
   font-size: 12px;
 }
+
+/* 移动端隐藏 */
+@media (max-width: 768px) {
+  .wiki-footer {
+    display: none;
+  }
+}
 </style>
